@@ -190,7 +190,18 @@ function numv(x) { return parseFloat(x) || 0; }
 
 function computeActuals() {
   const d = curData();
-  if (!d.transactions || d.transactions.length === 0) return;
+  const ck = curKey();
+
+  // Collect transactions dated in this month from ALL data buckets
+  // (handles legacy misrouted transactions gracefully)
+  const txs = [];
+  Object.values(st.data).forEach(md => {
+    (md.transactions || []).forEach(tx => {
+      if (tx.date && tx.date.startsWith(ck)) txs.push(tx);
+    });
+  });
+
+  if (txs.length === 0) return;
 
   EXPENSE_CATS.forEach(cat => {
     cat.items.forEach(it => { d.expenses[cat.id][it.id].a = 0; });
@@ -198,20 +209,17 @@ function computeActuals() {
   INCOME_ITEMS.forEach(it => { d.income[it.id].a = 0; });
   SAVINGS_ITEMS.forEach(it => { d.savings[it.id].a = 0; });
 
-  d.transactions.forEach(tx => {
+  txs.forEach(tx => {
     const amt = numv(tx.amount);
     if (tx.type === 'expense') {
-      if (d.expenses[tx.catId]?.[tx.itemId] !== undefined) {
+      if (d.expenses[tx.catId]?.[tx.itemId] !== undefined)
         d.expenses[tx.catId][tx.itemId].a += amt;
-      }
     } else if (tx.type === 'income') {
-      if (d.income[tx.itemId] !== undefined) {
+      if (d.income[tx.itemId] !== undefined)
         d.income[tx.itemId].a += amt;
-      }
     } else if (tx.type === 'savings') {
-      if (d.savings[tx.itemId] !== undefined) {
+      if (d.savings[tx.itemId] !== undefined)
         d.savings[tx.itemId].a += amt;
-      }
     }
   });
 }
@@ -292,12 +300,19 @@ function addTransaction(tx) {
 }
 
 function deleteTransaction(id) {
-  const d = curData();
-  if (!d.transactions) return;
-  d.transactions = d.transactions.filter(tx => tx.id !== id);
+  // Find the transaction in whichever month bucket it lives in
+  let affectedKey = null;
+  Object.entries(st.data).forEach(([k, md]) => {
+    if (md.transactions?.some(tx => tx.id === id)) {
+      md.transactions = md.transactions.filter(tx => tx.id !== id);
+      affectedKey = k;
+    }
+  });
   computeActuals();
   updateDerived();
   buildLogPage();
+  if (affectedKey === curKey()) scheduleSave();
+  else if (affectedKey) saveMonthImmediate(affectedKey);
 }
 
 function txLabel(tx) {
@@ -700,10 +715,17 @@ function buildBudgetPage() {
 }
 
 function buildLogPage() {
-  const d = curData();
-  const txs = (d.transactions || []).slice().sort((a, b) =>
-    (b.date + b.time).localeCompare(a.date + a.time)
-  );
+  const ck = curKey();
+
+  // Collect ALL transactions dated in this month from ALL data buckets
+  const allTxs = [];
+  Object.values(st.data).forEach(md => {
+    (md.transactions || []).forEach(tx => {
+      if (tx.date && tx.date.startsWith(ck)) allTxs.push(tx);
+    });
+  });
+
+  const txs = allTxs.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   const countEl = document.getElementById('logCount');
   if (countEl) countEl.textContent = txs.length;
