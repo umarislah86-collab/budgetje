@@ -272,12 +272,23 @@ function distribution() {
 // =============================================================================
 
 function addTransaction(tx) {
-  const d = curData();
+  const txKey = tx.date.slice(0, 7); // "YYYY-MM" from transaction date
+  if (!st.data[txKey]) st.data[txKey] = emptyMonth();
+  const d = st.data[txKey];
   if (!d.transactions) d.transactions = [];
   d.transactions.push(tx);
-  computeActuals();
-  updateDerived();
-  buildLogPage();
+
+  if (txKey === curKey()) {
+    // Same month as currently viewed — update UI live
+    computeActuals();
+    updateDerived();
+    buildLogPage();
+    scheduleSave();
+  } else {
+    // Different month — save that month immediately, no UI change needed
+    saveMonthImmediate(txKey);
+    toast(`Saved to ${txKey} ✓`);
+  }
 }
 
 function deleteTransaction(id) {
@@ -380,6 +391,19 @@ async function loadFromCloud() {
   computeActuals();
   updateDerived();
   setTimeout(initCharts, 60);
+}
+
+async function saveMonthImmediate(k) {
+  if (FIREBASE_ENABLED && st.user) {
+    try {
+      await firebase.firestore()
+        .collection('users').doc(st.user.uid)
+        .collection('months').doc(k)
+        .set(st.data[k]);
+    } catch(e) { saveLocal(); }
+  } else {
+    saveLocal();
+  }
 }
 
 async function deleteMonthFromCloud(k) {
