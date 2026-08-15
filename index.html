@@ -41,8 +41,6 @@
     <div class="header-actions">
       <span id="syncDot" class="sync-dot" title="Sync status"></span>
       <button class="btn-icon" id="btnTheme" title="Toggle theme">&#9790;</button>
-      <button class="btn-copy budget-only" id="btnCopy" title="Copy from last month">&#9166; Copy</button>
-      <button class="btn-secondary budget-only" id="btnClear">Reset</button>
       <button class="btn-primary" id="btnSave">Save</button>
       <div class="user-info" id="userInfo" style="display:none">
         <div class="user-avatar" id="userAvatar"></div>
@@ -120,6 +118,10 @@
 
     <!-- ── BUDGET PAGE ───────────────────────────── -->
     <section id="pageBudget" class="page">
+      <div class="budget-actions">
+        <button class="btn-copy" id="btnCopy">&#9166; Copy from last month</button>
+        <button class="btn-secondary" id="btnClear">Reset month</button>
+      </div>
       <div class="budget-hint">Actuals are auto-filled from your Log entries.</div>
       <div class="budget-layout">
         <div class="expense-col" id="colLeft"></div>

@@ -724,11 +724,6 @@ function switchPage(name) {
   document.getElementById(pageId)?.classList.add('active');
   document.querySelector(`.bnav-tab[data-page="${name}"]`)?.classList.add('active');
 
-  // Budget-only header buttons
-  document.querySelectorAll('.budget-only').forEach(el => {
-    el.style.display = name === 'budget' ? 'inline-flex' : 'none';
-  });
-
   if (name === 'log') buildLogPage();
 
   if (name === 'home' && st.charts) {
