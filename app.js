@@ -160,14 +160,14 @@ const st = {
   year: 0, month: 0,
   data: {},
   charts: null,
-  user: null,       // Firebase user object (null = local mode)
+  user: null,
 };
 
 function key(y, m) { return `${y}-${String(m).padStart(2,'0')}`; }
 function curKey()  { return key(st.year, st.month); }
 
 function emptyMonth() {
-  const d = { income: {}, expenses: {}, savings: {} };
+  const d = { income: {}, expenses: {}, savings: {}, transactions: [] };
   INCOME_ITEMS.forEach(it => { d.income[it.id] = { p: 0, a: 0 }; });
   EXPENSE_CATS.forEach(cat => {
     d.expenses[cat.id] = {};
@@ -187,6 +187,34 @@ function curData() {
 // =============================================================================
 
 function numv(x) { return parseFloat(x) || 0; }
+
+function computeActuals() {
+  const d = curData();
+  if (!d.transactions || d.transactions.length === 0) return;
+
+  EXPENSE_CATS.forEach(cat => {
+    cat.items.forEach(it => { d.expenses[cat.id][it.id].a = 0; });
+  });
+  INCOME_ITEMS.forEach(it => { d.income[it.id].a = 0; });
+  SAVINGS_ITEMS.forEach(it => { d.savings[it.id].a = 0; });
+
+  d.transactions.forEach(tx => {
+    const amt = numv(tx.amount);
+    if (tx.type === 'expense') {
+      if (d.expenses[tx.catId]?.[tx.itemId] !== undefined) {
+        d.expenses[tx.catId][tx.itemId].a += amt;
+      }
+    } else if (tx.type === 'income') {
+      if (d.income[tx.itemId] !== undefined) {
+        d.income[tx.itemId].a += amt;
+      }
+    } else if (tx.type === 'savings') {
+      if (d.savings[tx.itemId] !== undefined) {
+        d.savings[tx.itemId].a += amt;
+      }
+    }
+  });
+}
 
 function calcAccumulated(itemId) {
   const ck = curKey();
@@ -240,7 +268,50 @@ function distribution() {
 }
 
 // =============================================================================
-// STORAGE — Firebase or localStorage fallback
+// TRANSACTIONS
+// =============================================================================
+
+function addTransaction(tx) {
+  const d = curData();
+  if (!d.transactions) d.transactions = [];
+  d.transactions.push(tx);
+  computeActuals();
+  updateDerived();
+  buildLogPage();
+}
+
+function deleteTransaction(id) {
+  const d = curData();
+  if (!d.transactions) return;
+  d.transactions = d.transactions.filter(tx => tx.id !== id);
+  computeActuals();
+  updateDerived();
+  buildLogPage();
+}
+
+function txLabel(tx) {
+  if (tx.type === 'income') {
+    const item = INCOME_ITEMS.find(it => it.id === tx.itemId);
+    return { icon: '💰', cat: 'Income', item: item?.label || tx.itemId };
+  }
+  if (tx.type === 'savings') {
+    const item = SAVINGS_ITEMS.find(it => it.id === tx.itemId);
+    return { icon: '🏦', cat: 'Savings', item: item?.label || tx.itemId };
+  }
+  const cat = EXPENSE_CATS.find(c => c.id === tx.catId);
+  const item = cat?.items.find(it => it.id === tx.itemId);
+  return { icon: cat?.icon || '💸', cat: cat?.label || tx.catId, item: item?.label || tx.itemId };
+}
+
+function formatTxDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(d)} ${mon[parseInt(m)-1]} ${y}`;
+}
+
+// =============================================================================
+// STORAGE
 // =============================================================================
 
 let saveTimer = null;
@@ -301,10 +372,12 @@ async function loadFromCloud() {
   } catch(e) {
     console.error('Load error:', e);
     setSyncDot('error');
-    loadLocal(); // fallback to local cache
+    loadLocal();
   }
   showLoading(false);
-  buildUI();
+  buildBudgetPage();
+  buildLogPage();
+  computeActuals();
   updateDerived();
   setTimeout(initCharts, 60);
 }
@@ -335,19 +408,19 @@ function loadPrefs() {
 
 function initAuth() {
   if (!FIREBASE_ENABLED) {
-    // Local mode — skip login screen entirely
     showLoginScreen(false);
     loadLocal();
-    buildUI();
+    buildBudgetPage();
+    buildLogPage();
+    computeActuals();
     updateDerived();
     setTimeout(initCharts, 60);
     return;
   }
 
-  const auth = firebase.auth();
-
-  // Show local mode option
   document.getElementById('localModeNote').style.display = 'block';
+
+  const auth = firebase.auth();
 
   auth.onAuthStateChanged(user => {
     if (user) {
@@ -383,15 +456,16 @@ function initAuth() {
     e.preventDefault();
     showLoginScreen(false);
     loadLocal();
-    buildUI();
+    buildBudgetPage();
+    buildLogPage();
+    computeActuals();
     updateDerived();
     setTimeout(initCharts, 60);
   });
 }
 
 function showLoginScreen(show) {
-  const ls = document.getElementById('loginScreen');
-  ls.style.display = show ? 'flex' : 'none';
+  document.getElementById('loginScreen').style.display = show ? 'flex' : 'none';
 }
 
 function updateUserInfo(user) {
@@ -415,7 +489,6 @@ function setSyncDot(status) {
 }
 
 function showLoading(show) {
-  // Simple: disable inputs while loading
   document.querySelectorAll('.ni').forEach(el => el.disabled = show);
 }
 
@@ -424,8 +497,8 @@ function fmt(n) {
 }
 
 function fmtVar(val) {
-  if (val > 0) return { t: fmt(val),  cls: 'vp' };
-  if (val < 0) return { t: fmt(val),  cls: 'vn' };
+  if (val > 0) return { t: fmt(val), cls: 'vp' };
+  if (val < 0) return { t: fmt(val), cls: 'vn' };
   return { t: '—', cls: 'vz' };
 }
 
@@ -444,7 +517,7 @@ function setEl(id, text, color) {
 }
 
 // =============================================================================
-// DOM BUILDERS
+// DOM BUILDERS (Budget page)
 // =============================================================================
 
 function buildExpenseCat(cat) {
@@ -456,11 +529,10 @@ function buildExpenseCat(cat) {
 
   const rows = cat.items.map(it => {
     const b = numv(d.expenses[cat.id][it.id].b) || '';
-    const a = numv(d.expenses[cat.id][it.id].a) || '';
     return `<tr>
       <td><span class="item-label">${it.label}</span></td>
       <td><input type="number" class="ni" data-t="exp" data-c="${cat.id}" data-i="${it.id}" data-f="b" value="${b}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
-      <td><input type="number" class="ni" data-t="exp" data-c="${cat.id}" data-i="${it.id}" data-f="a" value="${a}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
+      <td class="acc-ro" id="ea_${cat.id}_${it.id}">0.00</td>
       <td class="vc" id="v_${cat.id}_${it.id}"></td>
     </tr>`;
   }).join('');
@@ -498,11 +570,10 @@ function buildIncome() {
   const d = curData();
   const rows = INCOME_ITEMS.map(it => {
     const p = numv(d.income[it.id].p) || '';
-    const a = numv(d.income[it.id].a) || '';
     return `<tr>
       <td><span class="item-label">${it.label}</span></td>
       <td><input type="number" class="ni" data-t="inc" data-i="${it.id}" data-f="p" value="${p}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
-      <td><input type="number" class="ni" data-t="inc" data-i="${it.id}" data-f="a" value="${a}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
+      <td class="acc-ro" id="ia_${it.id}">0.00</td>
     </tr>`;
   }).join('');
 
@@ -528,12 +599,11 @@ function buildSavings() {
   const rows = SAVINGS_ITEMS.map(it => {
     const sv = d.savings[it.id];
     const p  = numv(sv.p)    || '';
-    const a  = numv(sv.a)    || '';
     const g  = numv(sv.goal) || '';
     return `<tr>
       <td><span class="item-label">${it.label}</span></td>
       <td><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="p"    value="${p}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
-      <td><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="a"    value="${a}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
+      <td class="acc-ro" id="sa_${it.id}">0.00</td>
       <td class="acc-ro" id="acc_${it.id}">0.00</td>
       <td><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="goal" value="${g}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
     </tr>`;
@@ -580,10 +650,10 @@ function buildSummary() {
 }
 
 // =============================================================================
-// UI ASSEMBLY
+// PAGE BUILDERS
 // =============================================================================
 
-function buildUI() {
+function buildBudgetPage() {
   const colL = document.getElementById('colLeft');
   const colR = document.getElementById('colRight');
   colL.innerHTML = '';
@@ -605,14 +675,176 @@ function buildUI() {
   initCollapsible();
 }
 
+function buildLogPage() {
+  const d = curData();
+  const txs = (d.transactions || []).slice().sort((a, b) =>
+    (b.date + b.time).localeCompare(a.date + a.time)
+  );
+
+  const countEl = document.getElementById('logCount');
+  if (countEl) countEl.textContent = txs.length;
+
+  const list = document.getElementById('logList');
+  if (!list) return;
+
+  if (txs.length === 0) {
+    list.innerHTML = '<div class="log-empty">No transactions this month.<br>Add one from the Home tab.</div>';
+    return;
+  }
+
+  list.innerHTML = txs.map(tx => {
+    const { icon, cat, item } = txLabel(tx);
+    const amtClass = tx.type === 'income' ? 'log-inc' : tx.type === 'savings' ? 'log-sav' : 'log-exp';
+    const sign = tx.type === 'income' ? '+' : '−';
+    const dateStr = formatTxDate(tx.date);
+    const noteStr = tx.note ? ` · ${tx.note}` : '';
+    return `<div class="log-item">
+      <div class="log-icon">${icon}</div>
+      <div class="log-info">
+        <div class="log-title">${cat} · ${item}</div>
+        <div class="log-meta">${dateStr} ${tx.time}${noteStr}</div>
+      </div>
+      <div class="log-amount ${amtClass}">${sign}RM&nbsp;${fmt(tx.amount)}</div>
+      <button class="log-delete" data-id="${tx.id}" title="Delete">×</button>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.log-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('Delete this entry?')) deleteTransaction(btn.dataset.id);
+    });
+  });
+}
+
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bnav-tab').forEach(t => t.classList.remove('active'));
+
+  const pageId = 'page' + name.charAt(0).toUpperCase() + name.slice(1);
+  document.getElementById(pageId)?.classList.add('active');
+  document.querySelector(`.bnav-tab[data-page="${name}"]`)?.classList.add('active');
+
+  // Budget-only header buttons
+  const show = name === 'budget' ? '' : 'none';
+  document.querySelectorAll('.budget-only').forEach(el => el.style.display = show);
+
+  if (name === 'log') buildLogPage();
+
+  if (name === 'home' && st.charts) {
+    setTimeout(() => Object.values(st.charts).forEach(c => c?.update()), 50);
+  }
+}
+
 function initCollapsible() {
   if (window.innerWidth >= 768) return;
   document.querySelectorAll('.cat-section').forEach(section => {
     section.classList.add('collapsed');
-    section.querySelector('.cat-header').addEventListener('click', () => {
-      section.classList.toggle('collapsed');
+    const header = section.querySelector('.cat-header');
+    header.addEventListener('click', () => section.classList.toggle('collapsed'));
+  });
+}
+
+// =============================================================================
+// ENTRY FORM
+// =============================================================================
+
+let entryType = 'expense';
+
+function initEntryForm() {
+  // Default date = today
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  document.getElementById('entryDate').value = todayStr;
+
+  // Type tabs
+  document.querySelectorAll('.type-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      entryType = tab.dataset.type;
+      document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      updateEntrySelects();
     });
   });
+
+  // Category → update items
+  document.getElementById('entryCat').addEventListener('change', updateEntryItems);
+
+  // Submit
+  document.getElementById('btnAddEntry').addEventListener('click', submitEntry);
+
+  // Allow Enter key on note field to submit
+  document.getElementById('entryNote').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitEntry();
+  });
+
+  updateEntrySelects();
+}
+
+function updateEntrySelects() {
+  const catSel  = document.getElementById('entryCat');
+  const itemSel = document.getElementById('entryItem');
+
+  if (entryType === 'expense') {
+    catSel.style.display = '';
+    catSel.innerHTML = EXPENSE_CATS.map(cat =>
+      `<option value="${cat.id}">${cat.icon} ${cat.label}</option>`
+    ).join('');
+    updateEntryItems();
+  } else if (entryType === 'income') {
+    catSel.style.display = 'none';
+    itemSel.innerHTML = INCOME_ITEMS.map(it =>
+      `<option value="${it.id}">${it.label}</option>`
+    ).join('');
+  } else {
+    catSel.style.display = 'none';
+    itemSel.innerHTML = SAVINGS_ITEMS.map(it =>
+      `<option value="${it.id}">${it.label}</option>`
+    ).join('');
+  }
+}
+
+function updateEntryItems() {
+  if (entryType !== 'expense') return;
+  const catId = document.getElementById('entryCat').value;
+  const cat   = EXPENSE_CATS.find(c => c.id === catId);
+  if (!cat) return;
+  document.getElementById('entryItem').innerHTML = cat.items.map(it =>
+    `<option value="${it.id}">${it.label}</option>`
+  ).join('');
+}
+
+function submitEntry() {
+  const amountRaw = document.getElementById('entryAmount').value;
+  const amount = parseFloat(amountRaw);
+  if (!amount || amount <= 0) { toast('Enter a valid amount'); return; }
+
+  const now    = new Date();
+  const dateEl = document.getElementById('entryDate');
+  const dateVal = dateEl.value || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const timeVal = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const catId  = entryType === 'expense' ? document.getElementById('entryCat').value : entryType;
+  const itemId = document.getElementById('entryItem').value;
+
+  const tx = {
+    id:     'tx_' + now.getTime().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+    date:   dateVal,
+    time:   timeVal,
+    type:   entryType,
+    catId:  catId,
+    itemId: itemId,
+    amount: amount,
+    note:   document.getElementById('entryNote').value.trim(),
+  };
+
+  addTransaction(tx);
+  scheduleSave();
+
+  document.getElementById('entryAmount').value = '';
+  document.getElementById('entryNote').value   = '';
+  document.getElementById('entryAmount').focus();
+
+  toast(`Added RM ${fmt(amount)} ✓`);
 }
 
 // =============================================================================
@@ -620,14 +852,18 @@ function initCollapsible() {
 // =============================================================================
 
 function updateDerived() {
+  computeActuals();
+
   const d = curData();
 
+  // Expense category rows + totals
   EXPENSE_CATS.forEach(cat => {
     let tb = 0, ta = 0;
     cat.items.forEach(it => {
       const b = numv(d.expenses[cat.id][it.id].b);
       const a = numv(d.expenses[cat.id][it.id].a);
       tb += b; ta += a;
+      setEl(`ea_${cat.id}_${it.id}`, fmt(a));
       const vEl = document.getElementById(`v_${cat.id}_${it.id}`);
       if (vEl) {
         const { t, cls } = fmtVar(b - a);
@@ -641,24 +877,26 @@ function updateDerived() {
       const { t, cls } = fmtVar(tb - ta);
       vtEl.textContent = t; vtEl.className = `vc ${cls}`;
     }
-    // Preview total in collapsed header
     const ptEl = document.getElementById(`cpt_${cat.id}`);
     if (ptEl) ptEl.textContent = ta > 0 ? `RM ${fmt(ta)}` : '';
   });
 
+  // Income
+  INCOME_ITEMS.forEach(it => setEl(`ia_${it.id}`, fmt(numv(d.income[it.id].a))));
   setEl('inc_tp', fmt(incSum('p')));
   setEl('inc_ta', fmt(incSum('a')));
 
+  // Savings
+  SAVINGS_ITEMS.forEach(it => {
+    setEl(`sa_${it.id}`,  fmt(numv(d.savings[it.id].a)));
+    setEl(`acc_${it.id}`, fmt(calcAccumulated(it.id)));
+  });
   setEl('sav_tp',   fmt(savSum('p')));
   setEl('sav_ta',   fmt(savSum('a')));
   setEl('sav_tacc', fmt(calcAllAccumulated()));
   setEl('sav_tgoal',fmt(savSum('goal')));
 
-  SAVINGS_ITEMS.forEach(it => {
-    const el = document.getElementById(`acc_${it.id}`);
-    if (el) el.textContent = fmt(calcAccumulated(it.id));
-  });
-
+  // Summary
   const s = summary();
   const idiff = s.ia - s.ip;
   const ediff = s.ea - s.ep;
@@ -672,6 +910,16 @@ function updateDerived() {
   setEl('sum_sa', fmt(s.sa));
   setEl('sum_np', fmt(s.np), s.np >= 0 ? 'var(--good)' : 'var(--bad)');
   setEl('sum_na', fmt(s.na), s.na >= 0 ? 'var(--good)' : 'var(--bad)');
+
+  // Stat tiles (Home page)
+  setEl('tile_ia', `RM ${fmt(s.ia)}`);
+  setEl('tile_ea', `RM ${fmt(s.ea)}`);
+  setEl('tile_sa', `RM ${fmt(s.sa)}`);
+  const naEl = document.getElementById('tile_na');
+  if (naEl) {
+    naEl.textContent = `RM ${fmt(s.na)}`;
+    naEl.style.color = s.na >= 0 ? 'var(--good)' : 'var(--bad)';
+  }
 
   updateCharts();
   scheduleSave();
@@ -695,7 +943,7 @@ function chartColors() {
 }
 
 function initCharts() {
-  if (st.charts) Object.values(st.charts).forEach(c => c.destroy());
+  if (st.charts) Object.values(st.charts).forEach(c => c?.destroy());
   const c = chartColors();
   const shared = { responsive: true, maintainAspectRatio: false, animation: { duration: 300 } };
 
@@ -769,7 +1017,7 @@ function initCharts() {
 }
 
 function updateCharts() {
-  if (!st.charts || !st.charts.pa) return;
+  if (!st.charts?.pa) return;
   const s = summary();
   const dist = distribution();
   const d = curData();
@@ -810,7 +1058,7 @@ function copyFromPrevMonth() {
     curr.savings[it.id].goal = prev.savings[it.id]?.goal || 0;
   });
 
-  buildUI();
+  buildBudgetPage();
   updateDerived();
   toast(`Copied from ${MONTHS[pm-1]} ${py} ✓`);
 }
@@ -838,7 +1086,9 @@ document.addEventListener('input', e => {
 function changeMonth() {
   st.year  = parseInt(document.getElementById('selYear').value);
   st.month = parseInt(document.getElementById('selMonth').value);
-  buildUI();
+  buildBudgetPage();
+  buildLogPage();
+  computeActuals();
   updateDerived();
 }
 
@@ -872,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selY.appendChild(o);
   }
 
-  // Wire up navigation & actions
+  // Month navigation
   selM.addEventListener('change', changeMonth);
   selY.addEventListener('change', changeMonth);
 
@@ -880,15 +1130,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (st.month === 1) { st.month = 12; st.year--; }
     else st.month--;
     selM.value = st.month; selY.value = st.year;
-    buildUI(); updateDerived();
+    buildBudgetPage(); buildLogPage(); computeActuals(); updateDerived();
   });
   document.getElementById('btnNext').addEventListener('click', () => {
     if (st.month === 12) { st.month = 1; st.year++; }
     else st.month++;
     selM.value = st.month; selY.value = st.year;
-    buildUI(); updateDerived();
+    buildBudgetPage(); buildLogPage(); computeActuals(); updateDerived();
   });
 
+  // Header actions
   document.getElementById('btnSave').addEventListener('click', async () => {
     await doSave();
     toast('Saved ✓');
@@ -900,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     delete st.data[k];
     if (FIREBASE_ENABLED && st.user) await deleteMonthFromCloud(k);
     else saveLocal();
-    buildUI(); updateDerived();
+    buildBudgetPage(); buildLogPage(); updateDerived();
     toast('Month reset');
   });
 
@@ -914,10 +1165,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(initCharts, 30);
   });
 
-  // Set initial theme icon
   document.getElementById('btnTheme').innerHTML =
     document.documentElement.dataset.theme === 'dark' ? '&#9728;' : '&#9790;';
 
-  // Start auth flow (handles showing login screen or loading data)
+  // Bottom nav
+  document.querySelectorAll('.bnav-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchPage(tab.dataset.page));
+  });
+
+  // Init entry form
+  initEntryForm();
+
+  // Start on Home page (hides budget-only buttons)
+  switchPage('home');
+
+  // Auth flow (shows data once loaded)
   initAuth();
 });

@@ -8,7 +8,7 @@
 </head>
 <body>
 
-  <!-- Login screen (shown when Firebase enabled + not signed in) -->
+  <!-- Login screen -->
   <div id="loginScreen" class="login-screen" style="display:none">
     <div class="login-card">
       <div class="login-brand">budgetje</div>
@@ -25,6 +25,7 @@
     </div>
   </div>
 
+  <!-- Header -->
   <header class="app-header">
     <div class="header-brand">
       <span class="brand-name">budgetje</span>
@@ -40,8 +41,8 @@
     <div class="header-actions">
       <span id="syncDot" class="sync-dot" title="Sync status"></span>
       <button class="btn-icon" id="btnTheme" title="Toggle theme">&#9790;</button>
-      <button class="btn-copy" id="btnCopy" title="Copy from last month">&#9166;</button>
-      <button class="btn-secondary" id="btnClear">Reset</button>
+      <button class="btn-copy budget-only" id="btnCopy" title="Copy from last month">&#9166; Copy</button>
+      <button class="btn-secondary budget-only" id="btnClear">Reset</button>
       <button class="btn-primary" id="btnSave">Save</button>
       <div class="user-info" id="userInfo" style="display:none">
         <div class="user-avatar" id="userAvatar"></div>
@@ -51,35 +52,117 @@
   </header>
 
   <main class="app-main">
-    <div class="budget-layout">
-      <div class="expense-col" id="colLeft"></div>
-      <div class="expense-col" id="colRight"></div>
-      <aside class="budget-sidebar">
-        <div id="incomeSection"></div>
-        <div id="savingsSection"></div>
-        <div id="summarySection"></div>
-      </aside>
-    </div>
 
-    <div class="charts-layout">
-      <div class="chart-card">
-        <div class="chart-title">Projected vs. Actual (RM)</div>
-        <div class="chart-wrap"><canvas id="chartPA"></canvas></div>
+    <!-- ── HOME PAGE ────────────────────────────── -->
+    <section id="pageHome" class="page active">
+
+      <!-- Quick Entry -->
+      <div class="entry-card">
+        <div class="entry-type-tabs">
+          <button class="type-tab active" data-type="expense">Expense</button>
+          <button class="type-tab" data-type="income">Income</button>
+          <button class="type-tab" data-type="savings">Savings</button>
+        </div>
+        <div class="entry-amount-wrap">
+          <span class="entry-rm">RM</span>
+          <input type="number" id="entryAmount" class="entry-amount" placeholder="0.00"
+                 inputmode="decimal" min="0" step="0.01">
+        </div>
+        <div class="entry-selects" id="entrySelectRow">
+          <select id="entryCat" class="entry-sel"></select>
+          <select id="entryItem" class="entry-sel"></select>
+        </div>
+        <div class="entry-meta">
+          <input type="date" id="entryDate" class="entry-sel entry-date">
+          <input type="text" id="entryNote" class="entry-sel entry-note"
+                 placeholder="Note (optional)" maxlength="80">
+        </div>
+        <button id="btnAddEntry" class="btn-add-entry">+ Add</button>
       </div>
-      <div class="chart-card">
-        <div class="chart-title">Expense Distribution</div>
-        <div class="chart-wrap"><canvas id="chartDist"></canvas></div>
+
+      <!-- Stat Tiles -->
+      <div class="stat-tiles">
+        <div class="stat-tile">
+          <span class="stat-label">Income</span>
+          <span class="stat-val" id="tile_ia">—</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Expenses</span>
+          <span class="stat-val" id="tile_ea">—</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Net</span>
+          <span class="stat-val" id="tile_na">—</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-label">Savings</span>
+          <span class="stat-val" id="tile_sa">—</span>
+        </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-title">Savings Progress (RM)</div>
-        <div class="chart-wrap chart-wrap--tall"><canvas id="chartSav"></canvas></div>
+
+      <!-- Charts -->
+      <div class="charts-layout">
+        <div class="chart-card">
+          <div class="chart-title">Projected vs. Actual (RM)</div>
+          <div class="chart-wrap"><canvas id="chartPA"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Expense Distribution</div>
+          <div class="chart-wrap"><canvas id="chartDist"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Savings Progress (RM)</div>
+          <div class="chart-wrap chart-wrap--tall"><canvas id="chartSav"></canvas></div>
+        </div>
       </div>
-    </div>
+
+    </section>
+
+    <!-- ── BUDGET PAGE ───────────────────────────── -->
+    <section id="pageBudget" class="page">
+      <div class="budget-hint">Actuals are auto-filled from your Log entries.</div>
+      <div class="budget-layout">
+        <div class="expense-col" id="colLeft"></div>
+        <div class="expense-col" id="colRight"></div>
+        <aside class="budget-sidebar">
+          <div id="incomeSection"></div>
+          <div id="savingsSection"></div>
+          <div id="summarySection"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ── LOG PAGE ──────────────────────────────── -->
+    <section id="pageLog" class="page">
+      <div class="log-wrap">
+        <div class="log-header">
+          <span>Transactions</span>
+          <span class="log-count-badge" id="logCount">0</span>
+        </div>
+        <div id="logList"></div>
+      </div>
+    </section>
+
   </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <button class="bnav-tab active" data-page="home">
+      <span class="bnav-icon">🏠</span>
+      <span class="bnav-label">Home</span>
+    </button>
+    <button class="bnav-tab" data-page="budget">
+      <span class="bnav-icon">📋</span>
+      <span class="bnav-label">Budget</span>
+    </button>
+    <button class="bnav-tab" data-page="log">
+      <span class="bnav-icon">📝</span>
+      <span class="bnav-label">Log</span>
+    </button>
+  </nav>
 
   <div id="toast" class="toast"></div>
 
-  <!-- Firebase SDKs (loaded but only used if config is filled in) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
