@@ -725,8 +725,9 @@ function switchPage(name) {
   document.querySelector(`.bnav-tab[data-page="${name}"]`)?.classList.add('active');
 
   // Budget-only header buttons
-  const show = name === 'budget' ? '' : 'none';
-  document.querySelectorAll('.budget-only').forEach(el => el.style.display = show);
+  document.querySelectorAll('.budget-only').forEach(el => {
+    el.style.display = name === 'budget' ? 'inline-flex' : 'none';
+  });
 
   if (name === 'log') buildLogPage();
 
