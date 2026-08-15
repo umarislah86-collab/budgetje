@@ -268,10 +268,14 @@ body {
 .btn-signout:hover { color: var(--bad); border-color: var(--bad); }
 
 /* Hide text labels on small screens */
+@media (max-width: 640px) {
+  .brand-name { display: none; }
+  .app-header { padding: 0 0.625rem; gap: 0.25rem; }
+}
+
 @media (max-width: 480px) {
   .btn-secondary { display: none; }
   .btn-copy span { display: none; }
-  .brand-name { font-size: 1rem; }
 }
 
 /* ============================================================
