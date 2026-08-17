@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>budgetje — Personal Monthly Budget Tracker</title>
+  <meta name="description" content="Track your monthly budget with budgetje — quick expense logging, auto-filled actuals, visual charts, and cross-device sync.">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #2a78d6;
+      --blue-d: #1e5faa;
+      --orange: #eb6834;
+      --green: #1baf7a;
+      --red: #e34948;
+      --bg: #ffffff;
+      --bg2: #f7f6f2;
+      --border: #e3e2db;
+      --text: #1a1918;
+      --text2: #52514e;
+      --text3: #898781;
+      --shadow: 0 4px 24px rgba(0,0,0,.09);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      color: var(--text); background: var(--bg); line-height: 1.6;
+    }
+
+    /* ── NAV ── */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.875rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-size: 1.2rem; font-weight: 800; color: var(--blue); letter-spacing: -0.5px; text-decoration: none; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      padding: 0.6rem 1.25rem; border-radius: 8px; font-size: 0.875rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: none; transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--blue-d); }
+    .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--blue); color: var(--blue); background: color-mix(in srgb, var(--blue) 6%, transparent); }
+    .btn-orange { background: var(--orange); color: #fff; }
+    .btn-orange:hover { background: #d45a28; }
+    .btn-lg { padding: 0.8rem 1.75rem; font-size: 0.9375rem; border-radius: 10px; }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(140deg, #eef4ff 0%, #fff8f4 60%, #f4fff9 100%);
+      padding: 5rem 1.5rem 4.5rem; text-align: center;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: color-mix(in srgb, var(--blue) 12%, transparent);
+      color: var(--blue); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.8px;
+      padding: 0.3rem 0.875rem; border-radius: 100px; margin-bottom: 1.25rem;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5.5vw, 3.375rem); font-weight: 800;
+      line-height: 1.12; letter-spacing: -1.5px; max-width: 680px; margin: 0 auto 1rem;
+    }
+    .hero h1 span { color: var(--blue); }
+    .hero-sub {
+      font-size: clamp(0.9375rem, 2vw, 1.0625rem); color: var(--text2);
+      max-width: 520px; margin: 0 auto 2.25rem; line-height: 1.7;
+    }
+    .hero-ctas { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3.5rem; }
+
+    /* ── APP MOCKUP ── */
+    .mockup {
+      background: #fff; border: 1.5px solid var(--border);
+      border-radius: 18px; box-shadow: var(--shadow);
+      padding: 1.25rem; max-width: 460px; margin: 0 auto; text-align: left;
+    }
+    .m-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 0.875rem; margin-bottom: 0.875rem; border-bottom: 1px solid var(--border);
+    }
+    .m-logo { font-weight: 800; color: var(--blue); font-size: 0.9rem; }
+    .m-month { font-size: 0.7rem; color: var(--text3); background: var(--bg2); padding: 0.2rem 0.6rem; border-radius: 5px; }
+    .m-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1rem; }
+    .m-tile { background: var(--bg2); border-radius: 8px; padding: 0.625rem 0.75rem; }
+    .m-tile-lbl { font-size: 0.575rem; color: var(--text3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.15rem; }
+    .m-tile-val { font-size: 0.9375rem; font-weight: 700; }
+    .c-green { color: var(--green); }
+    .c-red   { color: var(--red); }
+    .c-blue  { color: var(--blue); }
+    .m-chart-lbl { font-size: 0.675rem; font-weight: 700; color: var(--text2); margin-bottom: 0.5rem; }
+    .m-bars { display: flex; flex-direction: column; gap: 0.4rem; }
+    .m-bar-row { display: flex; align-items: center; gap: 0.5rem; }
+    .m-bar-name { font-size: 0.6rem; color: var(--text3); width: 62px; flex-shrink: 0; }
+    .m-bar-track { flex: 1; background: var(--bg2); height: 7px; border-radius: 4px; overflow: hidden; }
+    .m-bar-fill { height: 100%; border-radius: 4px; }
+    .m-bar-val { font-size: 0.6rem; color: var(--text3); width: 46px; text-align: right; flex-shrink: 0; }
+    .m-nav {
+      display: flex; margin-top: 1rem; padding-top: 0.875rem; border-top: 1px solid var(--border);
+      justify-content: space-around;
+    }
+    .m-nav-tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.55rem; color: var(--text3); font-weight: 600; }
+    .m-nav-tab.active { color: var(--blue); }
+    .m-nav-icon { font-size: 1rem; }
+    .m-badge { background: var(--red); color: #fff; font-size: 0.5rem; padding: 0 4px; border-radius: 6px; line-height: 1.5; font-weight: 700; }
+
+    /* ── SECTIONS ── */
+    section { padding: 5rem 1.5rem; }
+    .s-pill { font-size: 0.7rem; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.6px; text-align: center; margin-bottom: 0.6rem; }
+    .s-title { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 800; letter-spacing: -0.5px; text-align: center; margin-bottom: 0.75rem; }
+    .s-sub { text-align: center; color: var(--text2); font-size: 0.9375rem; max-width: 480px; margin: 0 auto 3rem; line-height: 1.65; }
+
+    /* ── FEATURES ── */
+    .features { background: var(--bg); }
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 1.125rem; max-width: 1000px; margin: 0 auto; }
+    .feat-card {
+      background: var(--bg2); border: 1.5px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; transition: box-shadow .15s, border-color .15s;
+    }
+    .feat-card:hover { box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--blue) 30%, var(--border)); }
+    .feat-icon { font-size: 1.875rem; display: block; margin-bottom: 0.75rem; }
+    .feat-title { font-size: 0.9375rem; font-weight: 700; margin-bottom: 0.35rem; }
+    .feat-desc { font-size: 0.84375rem; color: var(--text2); line-height: 1.55; }
+
+    /* ── HOW IT WORKS ── */
+    .how { background: var(--bg2); }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 2rem; max-width: 860px; margin: 0 auto; text-align: center; }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%; background: var(--blue); color: #fff;
+      font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem;
+    }
+    .step-title { font-size: 0.9375rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .step-desc { font-size: 0.84375rem; color: var(--text2); line-height: 1.55; }
+
+    /* ── CTA ── */
+    .cta { background: linear-gradient(135deg, #1a5fbf 0%, #0f3d7a 100%); color: #fff; text-align: center; padding: 5.5rem 1.5rem; }
+    .cta .s-title { color: #fff; }
+    .cta .s-sub { color: rgba(255,255,255,.75); }
+    .cta .s-pill { color: rgba(255,255,255,.6); }
+    .cta-note { margin-top: 1.125rem; font-size: 0.78125rem; color: rgba(255,255,255,.5); }
+
+    /* ── FOOTER ── */
+    footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 1.5rem; text-align: center; font-size: 0.8125rem; color: var(--text3); }
+    footer a { color: var(--blue); text-decoration: none; }
+
+    @media (max-width: 500px) {
+      .hero { padding: 3.5rem 1rem 3rem; }
+      section { padding: 3.5rem 1rem; }
+      .nav { padding: 0.75rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="#" class="nav-logo">budgetje</a>
+    <a href="index.html" class="btn btn-primary">Open App</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">Personal Finance · Made Simple</div>
+    <h1>Your money,<br><span>finally organized.</span></h1>
+    <p class="hero-sub">budgetje is a personal monthly budget tracker — log expenses, income &amp; savings in seconds, watch actuals update live, and sync across all your devices.</p>
+    <div class="hero-ctas">
+      <a href="index.html" class="btn btn-primary btn-lg">Open App →</a>
+      <button class="btn btn-orange btn-lg" onclick="tryDemo()">▶ Try 6-Month Sample</button>
+    </div>
+
+    <!-- App Mockup -->
+    <div class="mockup">
+      <div class="m-header">
+        <span class="m-logo">budgetje</span>
+        <span class="m-month">August 2026</span>
+      </div>
+      <div class="m-tiles">
+        <div class="m-tile">
+          <div class="m-tile-lbl">Income</div>
+          <div class="m-tile-val c-blue">RM 8,500</div>
+        </div>
+        <div class="m-tile">
+          <div class="m-tile-lbl">Expenses</div>
+          <div class="m-tile-val c-red">RM 4,273</div>
+        </div>
+        <div class="m-tile">
+          <div class="m-tile-lbl">Savings</div>
+          <div class="m-tile-val c-green">RM 1,300</div>
+        </div>
+        <div class="m-tile">
+          <div class="m-tile-lbl">Net Balance</div>
+          <div class="m-tile-val c-green">RM 2,927</div>
+        </div>
+      </div>
+      <div class="m-chart-lbl">Expense Breakdown — August</div>
+      <div class="m-bars">
+        <div class="m-bar-row">
+          <span class="m-bar-name">Housing</span>
+          <div class="m-bar-track"><div class="m-bar-fill" style="width:78%;background:#2a78d6"></div></div>
+          <span class="m-bar-val">RM 2,005</span>
+        </div>
+        <div class="m-bar-row">
+          <span class="m-bar-name">Daily Living</span>
+          <div class="m-bar-track"><div class="m-bar-fill" style="width:42%;background:#eb6834"></div></div>
+          <span class="m-bar-val">RM 530</span>
+        </div>
+        <div class="m-bar-row">
+          <span class="m-bar-name">Transport</span>
+          <div class="m-bar-track"><div class="m-bar-fill" style="width:37%;background:#1baf7a"></div></div>
+          <span class="m-bar-val">RM 243</span>
+        </div>
+        <div class="m-bar-row">
+          <span class="m-bar-name">Giving</span>
+          <div class="m-bar-track"><div class="m-bar-fill" style="width:85%;background:#008300"></div></div>
+          <span class="m-bar-val">RM 500</span>
+        </div>
+        <div class="m-bar-row">
+          <span class="m-bar-name">Education</span>
+          <div class="m-bar-track"><div class="m-bar-fill" style="width:26%;background:#c98500"></div></div>
+          <span class="m-bar-val">RM 300</span>
+        </div>
+        <div class="m-bar-row">
+          <span class="m-bar-name">Health</span>
+          <div class="m-bar-track"><div class="m-bar-fill" style="width:17%;background:#4a3aa7"></div></div>
+          <span class="m-bar-val">RM 200</span>
+        </div>
+      </div>
+      <div class="m-nav">
+        <div class="m-nav-tab active">
+          <span class="m-nav-icon">🏠</span>Home
+        </div>
+        <div class="m-nav-tab" style="position:relative">
+          <span class="m-nav-icon">📋</span>Budget
+          <span class="m-badge">2</span>
+        </div>
+        <div class="m-nav-tab">
+          <span class="m-nav-icon">📝</span>Log
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="s-pill">What you get</div>
+    <h2 class="s-title">Everything you need to stay on track</h2>
+    <p class="s-sub">From quick entry to smart alerts — budgetje covers the full picture every month.</p>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <span class="feat-icon">⚡</span>
+        <div class="feat-title">Quick Entry Form</div>
+        <div class="feat-desc">Log any expense, income, or savings in seconds. Pick type → category → item → amount. Done.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">🔄</span>
+        <div class="feat-title">Auto-fill Actuals</div>
+        <div class="feat-desc">Every transaction instantly updates your budget table actuals. No double entry, ever.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">📋</span>
+        <div class="feat-title">Full Monthly Budget</div>
+        <div class="feat-desc">Plan income, 9 expense categories, and savings goals — all side-by-side with actuals and variance.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">📊</span>
+        <div class="feat-title">Visual Charts</div>
+        <div class="feat-desc">Three live charts: Projected vs Actual, Expense Distribution (doughnut), and Savings Progress.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">🚨</span>
+        <div class="feat-title">Over-Budget Alerts</div>
+        <div class="feat-desc">Red badge on the Budget tab counts over-budget line items. Affected rows are highlighted red.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">☁️</span>
+        <div class="feat-title">Cloud Sync</div>
+        <div class="feat-desc">Sign in with Google to sync all your months across every device in real time via Firestore.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">✏️</span>
+        <div class="feat-title">Edit Transactions</div>
+        <div class="feat-desc">Tap the pencil on any log entry to update amount, category, date, or note — even change months.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">📅</span>
+        <div class="feat-title">Copy Last Month</div>
+        <div class="feat-desc">One tap copies all budget targets from the previous month — no retyping every January.</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-icon">🌙</span>
+        <div class="feat-title">Dark Mode</div>
+        <div class="feat-desc">Light or dark — your preference is saved. Looks great on both phone and desktop.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how">
+    <div class="s-pill">Getting started</div>
+    <h2 class="s-title">Three steps to financial clarity</h2>
+    <p class="s-sub">Set up in minutes. Track for months.</p>
+    <div class="steps">
+      <div>
+        <div class="step-num">1</div>
+        <div class="step-title">Set your monthly budget</div>
+        <div class="step-desc">Enter planned income, budgeted amounts for each expense category, and savings goals.</div>
+      </div>
+      <div>
+        <div class="step-num">2</div>
+        <div class="step-title">Log transactions on the go</div>
+        <div class="step-desc">Use the quick entry form on the Home tab. Category dropdowns, date picker, optional note.</div>
+      </div>
+      <div>
+        <div class="step-num">3</div>
+        <div class="step-title">Track with live charts</div>
+        <div class="step-desc">Actuals update instantly. Charts and alerts show exactly where you stand, in real time.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO CTA -->
+  <section class="cta">
+    <div class="s-pill">Hands-on preview</div>
+    <h2 class="s-title">See it with 6 months of real data</h2>
+    <p class="s-sub">Load a full sample — salary, daily expenses, Eid month, travel month, savings progress — to explore every feature without signing in.</p>
+    <button class="btn btn-orange btn-lg" onclick="tryDemo()">▶ Try 6-Month Sample</button>
+    <p class="cta-note">No sign-in needed · Saved to local storage only · Won't affect your real data</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    budgetje · Personal Monthly Budget Tracker · <a href="index.html">Open App</a>
+  </footer>
+
+  <script>
+  function tryDemo() {
+    localStorage.setItem('budgetje_d', JSON.stringify(generateDemoData()));
+    window.location.href = 'index.html?demo=1';
+  }
+
+  function generateDemoData() {
+    function em() {
+      return {
+        income: {
+          salary:{p:0,a:0}, dividends:{p:0,a:0}, rentalIncome:{p:0,a:0},
+          businessIncome:{p:0,a:0}, irregular:{p:0,a:0}, capitalGains:{p:0,a:0}, transfers:{p:0,a:0}
+        },
+        expenses: {
+          housing:        { mortgageRent:{b:0,a:0}, maintenanceFees:{b:0,a:0}, electricity:{b:0,a:0}, gas:{b:0,a:0}, waterSewerWaste:{b:0,a:0}, phone:{b:0,a:0}, internet:{b:0,a:0}, furnishingAppliances:{b:0,a:0}, lawnGarden:{b:0,a:0}, homeImprovements:{b:0,a:0} },
+          transportation: { carMotorcycle:{b:0,a:0}, fuel:{b:0,a:0}, tollsParking:{b:0,a:0}, publicTransport:{b:0,a:0}, repairsMaintenance:{b:0,a:0} },
+          dailyLiving:    { groceries:{b:0,a:0}, childcare:{b:0,a:0}, cleaningLaundry:{b:0,a:0}, clothing:{b:0,a:0}, personalGrooming:{b:0,a:0}, diningOut:{b:0,a:0}, schoolAllowance:{b:0,a:0} },
+          lifestyle:      { digitalSubscriptions:{b:0,a:0}, nonEssentialShopping:{b:0,a:0}, hobbies:{b:0,a:0}, eventsActivities:{b:0,a:0} },
+          health:         { lifeTakaful:{b:0,a:0}, medicalTakaful:{b:0,a:0}, medicationSupplements:{b:0,a:0}, doctorVisits:{b:0,a:0}, dentalOptical:{b:0,a:0}, sportsWellness:{b:0,a:0} },
+          education:      { schoolFeesTuition:{b:0,a:0}, coursesCertifications:{b:0,a:0}, learningPlatforms:{b:0,a:0}, booksMaterials:{b:0,a:0}, schoolTransport:{b:0,a:0}, skillsEnrichment:{b:0,a:0} },
+          giving:         { spouse:{b:0,a:0}, parentsInLaws:{b:0,a:0}, zakat:{b:0,a:0}, giftsDonations:{b:0,a:0} },
+          travel:         { airfare:{b:0,a:0}, accommodation:{b:0,a:0}, foodDining:{b:0,a:0}, souvenirs:{b:0,a:0}, petBoarding:{b:0,a:0}, carRental:{b:0,a:0} },
+          contingencies:  { emergencyExpenses:{b:0,a:0} }
+        },
+        savings: {
+          emergencyFund:{p:0,a:0,goal:0}, retirementFund:{p:0,a:0,goal:0}, investments:{p:0,a:0,goal:0},
+          festiveFund:{p:0,a:0,goal:0}, hajjFund:{p:0,a:0,goal:0}, autoTakaful:{p:0,a:0,goal:0},
+          homeTakaful:{p:0,a:0,goal:0}, propertyTaxFund:{p:0,a:0,goal:0}, educationFund:{p:0,a:0,goal:0},
+          bufferFund:{p:0,a:0,goal:0}, otherSavings:{p:0,a:0,goal:0}
+        },
+        transactions: []
+      };
+    }
+
+    function stdPlan(m) {
+      m.income.salary.p = 8500;
+      m.expenses.housing.mortgageRent.b = 1500;
+      m.expenses.housing.electricity.b = 200;
+      m.expenses.housing.waterSewerWaste.b = 50;
+      m.expenses.housing.phone.b = 120;
+      m.expenses.housing.internet.b = 100;
+      m.expenses.transportation.fuel.b = 300;
+      m.expenses.transportation.tollsParking.b = 150;
+      m.expenses.dailyLiving.groceries.b = 600;
+      m.expenses.dailyLiving.diningOut.b = 300;
+      m.expenses.dailyLiving.personalGrooming.b = 100;
+      m.expenses.dailyLiving.clothing.b = 150;
+      m.expenses.lifestyle.digitalSubscriptions.b = 80;
+      m.expenses.lifestyle.hobbies.b = 100;
+      m.expenses.health.medicalTakaful.b = 200;
+      m.expenses.health.doctorVisits.b = 100;
+      m.expenses.education.schoolFeesTuition.b = 300;
+      m.expenses.education.booksMaterials.b = 50;
+      m.expenses.education.skillsEnrichment.b = 200;
+      m.expenses.giving.parentsInLaws.b = 500;
+      m.expenses.giving.zakat.b = 85;
+      m.expenses.contingencies.emergencyExpenses.b = 200;
+      m.savings.emergencyFund.p = 500;  m.savings.emergencyFund.goal = 30000;
+      m.savings.retirementFund.p = 500; m.savings.retirementFund.goal = 200000;
+      m.savings.educationFund.p = 300;  m.savings.educationFund.goal = 50000;
+    }
+
+    const data = {};
+    ['2026-03','2026-04','2026-05','2026-06','2026-07','2026-08'].forEach(k => {
+      data[k] = em(); stdPlan(data[k]);
+    });
+
+    // April — travel budget
+    data['2026-04'].expenses.travel.airfare.b = 1500;
+    data['2026-04'].expenses.travel.accommodation.b = 500;
+    data['2026-04'].expenses.travel.foodDining.b = 300;
+
+    // June — Eid budget adjustments
+    data['2026-06'].expenses.giving.parentsInLaws.b = 1000;
+    data['2026-06'].expenses.giving.giftsDonations.b = 500;
+    data['2026-06'].expenses.dailyLiving.clothing.b = 800;
+    data['2026-06'].income.irregular.p = 1000;
+
+    // Transactions: [id, date, time, type, catId, itemId, amount, note]
+    const tx = [
+      // ── MARCH 2026 ──────────────────────────────────────────────────────
+      ['dm001','2026-03-01','09:00','income','income','salary',8500,'Gaji Mac'],
+      ['dm002','2026-03-01','10:00','expense','housing','mortgageRent',1500,''],
+      ['dm003','2026-03-01','10:10','expense','housing','phone',120,''],
+      ['dm004','2026-03-01','10:20','savings','savings','emergencyFund',500,''],
+      ['dm005','2026-03-01','10:25','savings','savings','retirementFund',500,''],
+      ['dm006','2026-03-01','10:30','savings','savings','educationFund',300,''],
+      ['dm007','2026-03-01','11:00','expense','giving','parentsInLaws',500,''],
+      ['dm008','2026-03-01','12:00','expense','lifestyle','digitalSubscriptions',80,'Netflix + Spotify'],
+      ['dm009','2026-03-02','08:00','expense','education','schoolFeesTuition',300,'Yuran sekolah'],
+      ['dm010','2026-03-03','08:00','expense','housing','internet',100,'Unifi'],
+      ['dm011','2026-03-05','09:00','expense','health','medicalTakaful',200,''],
+      ['dm012','2026-03-05','10:00','expense','housing','electricity',187,'TNB'],
+      ['dm013','2026-03-07','09:00','expense','housing','waterSewerWaste',42,''],
+      ['dm014','2026-03-08','10:00','expense','dailyLiving','groceries',285,'Tesco'],
+      ['dm015','2026-03-10','15:00','expense','education','booksMaterials',45,'Buku rujukan'],
+      ['dm016','2026-03-11','07:30','expense','transportation','fuel',155,'Petronas'],
+      ['dm017','2026-03-14','19:30','expense','dailyLiving','diningOut',92,'Makan malam keluarga'],
+      ['dm018','2026-03-15','11:00','expense','dailyLiving','personalGrooming',95,''],
+      ['dm019','2026-03-20','18:00','expense','lifestyle','hobbies',85,'Court badminton'],
+      ['dm020','2026-03-22','10:00','expense','dailyLiving','groceries',320,'Restok barang dapur'],
+      ['dm021','2026-03-24','07:30','expense','transportation','fuel',160,'Shell'],
+      ['dm022','2026-03-28','12:30','expense','dailyLiving','diningOut',78,'Makan tengahari'],
+      ['dm023','2026-03-28','14:00','expense','giving','zakat',85,'Zakat pendapatan'],
+      ['dm024','2026-03-31','18:00','expense','transportation','tollsParking',148,'Touch n Go'],
+
+      // ── APRIL 2026 — Cuti keluarga KK ───────────────────────────────────
+      ['dm025','2026-04-01','09:00','income','income','salary',8500,'Gaji April'],
+      ['dm026','2026-04-01','10:00','expense','housing','mortgageRent',1500,''],
+      ['dm027','2026-04-01','10:10','expense','housing','phone',120,''],
+      ['dm028','2026-04-01','10:20','savings','savings','emergencyFund',500,''],
+      ['dm029','2026-04-01','10:25','savings','savings','retirementFund',500,''],
+      ['dm030','2026-04-01','10:30','savings','savings','educationFund',300,''],
+      ['dm031','2026-04-01','11:00','expense','giving','parentsInLaws',500,''],
+      ['dm032','2026-04-01','12:00','expense','lifestyle','digitalSubscriptions',80,''],
+      ['dm033','2026-04-02','08:00','expense','education','schoolFeesTuition',300,''],
+      ['dm034','2026-04-03','08:00','expense','housing','internet',100,''],
+      ['dm035','2026-04-05','09:00','expense','health','medicalTakaful',200,''],
+      ['dm036','2026-04-05','10:00','expense','housing','electricity',210,''],
+      ['dm037','2026-04-07','09:00','expense','housing','waterSewerWaste',48,''],
+      ['dm038','2026-04-09','10:00','expense','dailyLiving','groceries',310,''],
+      ['dm039','2026-04-10','07:30','expense','transportation','fuel',180,''],
+      ['dm040','2026-04-13','10:00','expense','travel','airfare',1200,'Flight KK - family trip'],
+      ['dm041','2026-04-17','14:00','expense','travel','accommodation',450,'Hotel 3 malam'],
+      ['dm042','2026-04-17','15:00','expense','travel','carRental',380,'Sewa kereta KK'],
+      ['dm043','2026-04-18','12:00','expense','travel','foodDining',320,'Seafood & jalan2'],
+      ['dm044','2026-04-19','15:00','expense','travel','souvenirs',180,'Buah tangan'],
+      ['dm045','2026-04-20','19:00','expense','dailyLiving','diningOut',250,'Makan lepas balik'],
+      ['dm046','2026-04-22','10:00','expense','lifestyle','hobbies',150,'Pancing — beli tackle'],
+      ['dm047','2026-04-30','18:00','expense','transportation','tollsParking',162,''],
+
+      // ── MAY 2026 ─────────────────────────────────────────────────────────
+      ['dm048','2026-05-01','09:00','income','income','salary',8500,'Gaji Mei'],
+      ['dm049','2026-05-01','10:00','expense','housing','mortgageRent',1500,''],
+      ['dm050','2026-05-01','10:10','expense','housing','phone',120,''],
+      ['dm051','2026-05-01','10:20','savings','savings','emergencyFund',500,''],
+      ['dm052','2026-05-01','10:25','savings','savings','retirementFund',500,''],
+      ['dm053','2026-05-01','10:30','savings','savings','educationFund',300,''],
+      ['dm054','2026-05-01','11:00','expense','giving','parentsInLaws',500,''],
+      ['dm055','2026-05-01','12:00','expense','lifestyle','digitalSubscriptions',80,''],
+      ['dm056','2026-05-02','08:00','expense','education','schoolFeesTuition',300,''],
+      ['dm057','2026-05-03','08:00','expense','housing','internet',100,''],
+      ['dm058','2026-05-05','09:00','expense','health','medicalTakaful',200,''],
+      ['dm059','2026-05-05','10:00','expense','housing','electricity',225,'Bulan panas'],
+      ['dm060','2026-05-07','09:00','expense','housing','waterSewerWaste',45,''],
+      ['dm061','2026-05-08','10:00','expense','dailyLiving','groceries',580,''],
+      ['dm062','2026-05-10','15:00','expense','education','booksMaterials',60,'Buku rujukan tambahan'],
+      ['dm063','2026-05-12','07:30','expense','transportation','fuel',295,''],
+      ['dm064','2026-05-14','11:00','expense','dailyLiving','personalGrooming',100,''],
+      ['dm065','2026-05-18','10:00','expense','health','doctorVisits',85,'Klinik panel'],
+      ['dm066','2026-05-20','18:00','expense','lifestyle','hobbies',95,''],
+      ['dm067','2026-05-21','12:00','expense','dailyLiving','diningOut',290,''],
+      ['dm068','2026-05-25','11:00','expense','dailyLiving','clothing',200,'Baju sekolah anak'],
+      ['dm069','2026-05-25','14:00','expense','housing','homeImprovements',450,'Baiki kabinet dapur'],
+      ['dm070','2026-05-28','14:00','expense','giving','zakat',85,''],
+      ['dm071','2026-05-31','18:00','expense','transportation','tollsParking',155,''],
+
+      // ── JUNE 2026 — Syawal / Raya Aidilfitri ────────────────────────────
+      ['dm072','2026-06-01','09:00','income','income','salary',8500,'Gaji Jun'],
+      ['dm073','2026-06-02','09:30','income','income','irregular',1500,'Bonus Raya'],
+      ['dm074','2026-06-01','10:00','expense','housing','mortgageRent',1500,''],
+      ['dm075','2026-06-01','10:10','expense','housing','phone',120,''],
+      ['dm076','2026-06-01','10:20','savings','savings','emergencyFund',500,''],
+      ['dm077','2026-06-01','10:25','savings','savings','retirementFund',500,''],
+      ['dm078','2026-06-01','10:30','savings','savings','educationFund',300,''],
+      ['dm079','2026-06-01','11:00','expense','giving','parentsInLaws',1000,'Duit raya ibu bapa'],
+      ['dm080','2026-06-01','12:00','expense','lifestyle','digitalSubscriptions',80,''],
+      ['dm081','2026-06-02','08:00','expense','education','schoolFeesTuition',300,''],
+      ['dm082','2026-06-03','08:00','expense','housing','internet',100,''],
+      ['dm083','2026-06-05','09:00','expense','health','medicalTakaful',200,''],
+      ['dm084','2026-06-05','10:00','expense','housing','electricity',195,''],
+      ['dm085','2026-06-05','11:00','expense','giving','zakat',85,''],
+      ['dm086','2026-06-05','12:00','expense','giving','giftsDonations',600,'Duit raya saudara'],
+      ['dm087','2026-06-05','14:00','expense','dailyLiving','clothing',850,'Baju raya sekeluarga'],
+      ['dm088','2026-06-07','09:00','expense','housing','waterSewerWaste',43,''],
+      ['dm089','2026-06-08','10:00','expense','dailyLiving','groceries',750,'Belanja Raya'],
+      ['dm090','2026-06-12','07:30','expense','transportation','fuel',320,'Balik kampung & raya'],
+      ['dm091','2026-06-21','19:00','expense','dailyLiving','diningOut',480,'Open house & makan raya'],
+      ['dm092','2026-06-22','18:00','expense','lifestyle','hobbies',90,''],
+      ['dm093','2026-06-30','18:00','expense','transportation','tollsParking',180,''],
+
+      // ── JULY 2026 — Bulan berjimat ───────────────────────────────────────
+      ['dm094','2026-07-01','09:00','income','income','salary',8500,'Gaji Julai'],
+      ['dm095','2026-07-01','10:00','expense','housing','mortgageRent',1500,''],
+      ['dm096','2026-07-01','10:10','expense','housing','phone',120,''],
+      ['dm097','2026-07-01','10:20','savings','savings','emergencyFund',600,'Top up simpanan'],
+      ['dm098','2026-07-01','10:25','savings','savings','retirementFund',500,''],
+      ['dm099','2026-07-01','10:30','savings','savings','educationFund',300,''],
+      ['dm100','2026-07-01','11:00','expense','giving','parentsInLaws',500,''],
+      ['dm101','2026-07-01','12:00','expense','lifestyle','digitalSubscriptions',80,''],
+      ['dm102','2026-07-02','08:00','expense','education','schoolFeesTuition',300,''],
+      ['dm103','2026-07-03','08:00','expense','housing','internet',100,''],
+      ['dm104','2026-07-05','09:00','expense','health','medicalTakaful',200,''],
+      ['dm105','2026-07-05','10:00','expense','housing','electricity',205,''],
+      ['dm106','2026-07-07','09:00','expense','housing','waterSewerWaste',44,''],
+      ['dm107','2026-07-08','10:00','expense','dailyLiving','groceries',570,''],
+      ['dm108','2026-07-12','07:30','expense','transportation','fuel',280,''],
+      ['dm109','2026-07-14','11:00','expense','dailyLiving','personalGrooming',98,''],
+      ['dm110','2026-07-15','09:00','expense','education','skillsEnrichment',250,'Kursus online'],
+      ['dm111','2026-07-18','18:00','expense','lifestyle','hobbies',70,'Badminton'],
+      ['dm112','2026-07-20','10:00','expense','health','medicationSupplements',75,'Vitamin & suplemen'],
+      ['dm113','2026-07-21','12:00','expense','dailyLiving','diningOut',220,''],
+      ['dm114','2026-07-31','18:00','expense','transportation','tollsParking',145,''],
+
+      // ── AUGUST 2026 — Bulan semasa (data separuh bulan) ──────────────────
+      ['dm115','2026-08-01','09:00','income','income','salary',8500,'Gaji Ogos'],
+      ['dm116','2026-08-01','10:00','expense','housing','mortgageRent',1500,''],
+      ['dm117','2026-08-01','10:10','expense','housing','phone',120,''],
+      ['dm118','2026-08-01','10:20','savings','savings','emergencyFund',500,''],
+      ['dm119','2026-08-01','10:25','savings','savings','retirementFund',500,''],
+      ['dm120','2026-08-01','10:30','savings','savings','educationFund',300,''],
+      ['dm121','2026-08-01','11:00','expense','giving','parentsInLaws',500,''],
+      ['dm122','2026-08-01','12:00','expense','lifestyle','digitalSubscriptions',80,''],
+      ['dm123','2026-08-02','08:00','expense','education','schoolFeesTuition',300,''],
+      ['dm124','2026-08-03','08:00','expense','housing','internet',100,''],
+      ['dm125','2026-08-05','09:00','expense','health','medicalTakaful',200,''],
+      ['dm126','2026-08-05','10:00','expense','housing','electricity',185,''],
+      ['dm127','2026-08-08','10:00','expense','dailyLiving','groceries',290,''],
+      ['dm128','2026-08-09','07:30','expense','transportation','fuel',165,''],
+      ['dm129','2026-08-11','11:00','expense','dailyLiving','personalGrooming',95,''],
+      ['dm130','2026-08-12','12:30','expense','dailyLiving','diningOut',145,''],
+      ['dm131','2026-08-15','18:00','expense','transportation','tollsParking',78,''],
+    ];
+
+    tx.forEach(t => {
+      const k = t[1].slice(0, 7);
+      if (data[k]) {
+        data[k].transactions.push({ id:t[0], date:t[1], time:t[2], type:t[3], catId:t[4], itemId:t[5], amount:t[6], note:t[7] });
+      }
+    });
+
+    return data;
+  }
+  </script>
+
+</body>
+</html>

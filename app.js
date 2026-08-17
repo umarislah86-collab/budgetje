@@ -600,7 +600,7 @@ function loadPrefs() {
 // =============================================================================
 
 function initAuth() {
-  if (!FIREBASE_ENABLED) {
+  if (!FIREBASE_ENABLED || new URLSearchParams(window.location.search).get('demo') === '1') {
     showLoginScreen(false);
     loadLocal();
     buildBudgetPage();
