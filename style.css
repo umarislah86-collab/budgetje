@@ -617,6 +617,7 @@ body {
 
 .bnav-tab {
   flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -642,6 +643,18 @@ body {
 }
 .bnav-icon { font-size: 1.1875rem; line-height: 1; }
 .bnav-label { font-size: 0.625rem; font-weight: 600; letter-spacing: 0.2px; }
+.bnav-badge {
+  position: absolute; top: 4px; right: 10px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bad); color: #fff;
+  font-size: 0.55rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; pointer-events: none;
+}
+
+/* Over-budget row highlight */
+tr.over-budget td { background: color-mix(in srgb, var(--bad) 8%, transparent); }
 
 /* ============================================================
    PAGES

@@ -1057,6 +1057,7 @@ function updateDerived() {
   const d = curData();
 
   // Expense category rows + totals
+  let overCount = 0;
   EXPENSE_CATS.forEach(cat => {
     let tb = 0, ta = 0;
     cat.items.forEach(it => {
@@ -1069,6 +1070,12 @@ function updateDerived() {
         const { t, cls } = fmtVar(b - a);
         vEl.textContent = t; vEl.className = `vc ${cls}`;
       }
+      const rowEl = document.getElementById(`ea_${cat.id}_${it.id}`)?.closest('tr');
+      if (rowEl) {
+        const isOver = b > 0 && a > b;
+        rowEl.classList.toggle('over-budget', isOver);
+        if (isOver) overCount++;
+      }
     });
     setEl(`ct_${cat.id}_b`, fmt(tb));
     setEl(`ct_${cat.id}_a`, fmt(ta));
@@ -1080,6 +1087,13 @@ function updateDerived() {
     const ptEl = document.getElementById(`cpt_${cat.id}`);
     if (ptEl) ptEl.textContent = ta > 0 ? `RM ${fmt(ta)}` : '';
   });
+
+  // Over-budget badge on Budget nav tab
+  const badge = document.getElementById('overBudgetBadge');
+  if (badge) {
+    badge.textContent = overCount;
+    badge.style.display = overCount > 0 ? 'inline-flex' : 'none';
+  }
 
   // Income
   INCOME_ITEMS.forEach(it => setEl(`ia_${it.id}`, fmt(numv(d.income[it.id].a))));
