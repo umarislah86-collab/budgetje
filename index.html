@@ -165,6 +165,34 @@
 
   <div id="toast" class="toast"></div>
 
+  <!-- Edit Transaction Modal -->
+  <div id="editModal" class="modal-overlay" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">Edit Transaction</span>
+        <button class="modal-close" id="btnCloseModal">&#x2715;</button>
+      </div>
+      <div class="entry-type-tabs">
+        <button class="edit-type-tab active" data-type="expense">Expense</button>
+        <button class="edit-type-tab" data-type="income">Income</button>
+        <button class="edit-type-tab" data-type="savings">Savings</button>
+      </div>
+      <div class="entry-amount-wrap">
+        <span class="entry-rm">RM</span>
+        <input type="number" id="editAmount" class="entry-amount" placeholder="0.00" inputmode="decimal" min="0" step="0.01">
+      </div>
+      <div class="entry-selects" id="editSelectRow">
+        <select id="editCat" class="entry-sel"></select>
+        <select id="editItem" class="entry-sel"></select>
+      </div>
+      <div class="entry-meta">
+        <input type="date" id="editDate" class="entry-sel entry-date">
+        <input type="text" id="editNote" class="entry-sel entry-note" placeholder="Note (optional)" maxlength="80">
+      </div>
+      <button id="btnUpdateEntry" class="btn-add-entry">Update</button>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>

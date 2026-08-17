@@ -315,6 +315,160 @@ function deleteTransaction(id) {
   else if (affectedKey) saveMonthImmediate(affectedKey);
 }
 
+// =============================================================================
+// EDIT MODAL
+// =============================================================================
+
+let editingTxId = null;
+let editType = 'expense';
+
+function openEditModal(id) {
+  let tx = null;
+  Object.values(st.data).forEach(md => {
+    (md.transactions || []).forEach(t => { if (t.id === id) tx = t; });
+  });
+  if (!tx) return;
+
+  editingTxId = id;
+  editType = tx.type;
+
+  // Set type tabs
+  document.querySelectorAll('.edit-type-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.type === editType);
+  });
+
+  document.getElementById('editAmount').value = tx.amount;
+  document.getElementById('editDate').value   = tx.date;
+  document.getElementById('editNote').value   = tx.note || '';
+
+  updateEditSelects();
+
+  // Set category/item after selects are populated
+  if (editType === 'expense') {
+    document.getElementById('editCat').value = tx.catId;
+    updateEditItems();
+    document.getElementById('editItem').value = tx.itemId;
+  } else {
+    document.getElementById('editItem').value = tx.itemId;
+  }
+
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+  editingTxId = null;
+}
+
+function updateEditSelects() {
+  const catSel  = document.getElementById('editCat');
+  const itemSel = document.getElementById('editItem');
+
+  if (editType === 'expense') {
+    catSel.style.display = '';
+    catSel.innerHTML = EXPENSE_CATS.map(cat =>
+      `<option value="${cat.id}">${cat.icon} ${cat.label}</option>`
+    ).join('');
+    updateEditItems();
+  } else if (editType === 'income') {
+    catSel.style.display = 'none';
+    itemSel.innerHTML = INCOME_ITEMS.map(it =>
+      `<option value="${it.id}">${it.label}</option>`
+    ).join('');
+  } else {
+    catSel.style.display = 'none';
+    itemSel.innerHTML = SAVINGS_ITEMS.map(it =>
+      `<option value="${it.id}">${it.label}</option>`
+    ).join('');
+  }
+}
+
+function updateEditItems() {
+  if (editType !== 'expense') return;
+  const catId = document.getElementById('editCat').value;
+  const cat   = EXPENSE_CATS.find(c => c.id === catId);
+  if (!cat) return;
+  document.getElementById('editItem').innerHTML = cat.items.map(it =>
+    `<option value="${it.id}">${it.label}</option>`
+  ).join('');
+}
+
+function updateTransaction() {
+  if (!editingTxId) return;
+
+  const amountRaw = document.getElementById('editAmount').value;
+  const amount = parseFloat(amountRaw);
+  if (!amount || amount <= 0) { toast('Enter a valid amount'); return; }
+
+  const dateVal  = document.getElementById('editDate').value;
+  const note     = document.getElementById('editNote').value.trim();
+  const catId    = editType === 'expense' ? document.getElementById('editCat').value : editType;
+  const itemId   = document.getElementById('editItem').value;
+
+  // Find and remove old transaction
+  let oldKey = null;
+  let oldTx  = null;
+  Object.entries(st.data).forEach(([k, md]) => {
+    const idx = (md.transactions || []).findIndex(t => t.id === editingTxId);
+    if (idx !== -1) {
+      oldTx  = md.transactions[idx];
+      oldKey = k;
+      md.transactions.splice(idx, 1);
+    }
+  });
+
+  if (!oldTx) { closeEditModal(); return; }
+
+  const newTx = {
+    id:     oldTx.id,
+    date:   dateVal,
+    time:   oldTx.time,
+    type:   editType,
+    catId:  catId,
+    itemId: itemId,
+    amount: amount,
+    note:   note,
+  };
+
+  const newKey = dateVal.slice(0, 7);
+  if (!st.data[newKey]) st.data[newKey] = emptyMonth();
+  if (!st.data[newKey].transactions) st.data[newKey].transactions = [];
+  st.data[newKey].transactions.push(newTx);
+
+  // Save affected months
+  if (newKey === curKey()) {
+    computeActuals(); updateDerived(); buildLogPage(); scheduleSave();
+  } else {
+    saveMonthImmediate(newKey);
+    computeActuals(); updateDerived(); buildLogPage();
+  }
+  if (oldKey && oldKey !== newKey) {
+    if (oldKey === curKey()) scheduleSave();
+    else saveMonthImmediate(oldKey);
+  }
+
+  closeEditModal();
+  toast('Updated ✓');
+}
+
+function initEditModal() {
+  document.querySelectorAll('.edit-type-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      editType = tab.dataset.type;
+      document.querySelectorAll('.edit-type-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      updateEditSelects();
+    });
+  });
+
+  document.getElementById('editCat').addEventListener('change', updateEditItems);
+  document.getElementById('btnUpdateEntry').addEventListener('click', updateTransaction);
+  document.getElementById('btnCloseModal').addEventListener('click', closeEditModal);
+  document.getElementById('editModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('editModal')) closeEditModal();
+  });
+}
+
 function txLabel(tx) {
   if (tx.type === 'income') {
     const item = INCOME_ITEMS.find(it => it.id === tx.itemId);
@@ -751,10 +905,14 @@ function buildLogPage() {
         <div class="log-meta">${dateStr} ${tx.time}${noteStr}</div>
       </div>
       <div class="log-amount ${amtClass}">${sign}RM&nbsp;${fmt(tx.amount)}</div>
+      <button class="log-edit" data-id="${tx.id}" title="Edit">✎</button>
       <button class="log-delete" data-id="${tx.id}" title="Delete">×</button>
     </div>`;
   }).join('');
 
+  list.querySelectorAll('.log-edit').forEach(btn => {
+    btn.addEventListener('click', () => openEditModal(btn.dataset.id));
+  });
   list.querySelectorAll('.log-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       if (confirm('Delete this entry?')) deleteTransaction(btn.dataset.id);
@@ -1217,6 +1375,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Init entry form
   initEntryForm();
+  initEditModal();
 
   // Start on Home page (hides budget-only buttons)
   switchPage('home');
