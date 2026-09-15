@@ -615,6 +615,12 @@ function initAuth() {
 
   const auth = firebase.auth();
 
+  // Complete redirect-based sign-in used by browsers that restrict popups.
+  auth.getRedirectResult().catch(e => {
+    console.error(e);
+    showAuthError(e);
+  });
+
   auth.onAuthStateChanged(user => {
     if (user) {
       st.user = user;
@@ -632,12 +638,30 @@ function initAuth() {
     }
   });
 
-  document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
+  document.getElementById('btnGoogleSignIn').addEventListener('click', async () => {
+    const button = document.getElementById('btnGoogleSignIn');
     const provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithPopup(provider).catch(e => {
+    provider.setCustomParameters({ prompt: 'select_account' });
+    button.disabled = true;
+    button.innerHTML = '<span class="auth-spinner" aria-hidden="true"></span>Opening Google…';
+    const ua = navigator.userAgent || '';
+    const useRedirect = /OPR\/|Opera|Opera Mini|FBAN|FBAV|Instagram/i.test(ua);
+    try {
+      if (useRedirect) {
+        await auth.signInWithRedirect(provider);
+        return;
+      }
+      await auth.signInWithPopup(provider);
+    } catch (e) {
       console.error(e);
-      toast('Sign-in failed — try again');
-    });
+      if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+        await auth.signInWithRedirect(provider);
+        return;
+      }
+      showAuthError(e);
+      button.disabled = false;
+      button.innerHTML = '<span class="google-g">G</span>Continue with Google';
+    }
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
@@ -672,6 +696,16 @@ function updateUserInfo(user) {
   setEl('profileEmail', user.email || 'Secure cloud account');
   setEl('profileAvatar', (user.displayName || user.email || 'B')[0].toUpperCase());
   setEl('headerGreeting', user.displayName?.split(' ')[0] || 'your money is ready');
+}
+
+function showAuthError(error) {
+  const messages = {
+    'auth/unauthorized-domain': 'This domain is not authorised for Google sign-in.',
+    'auth/network-request-failed': 'Network error. Check Opera ad-blocking or VPN, then try again.',
+    'auth/popup-closed-by-user': 'Sign-in window was closed before completion.',
+    'auth/cancelled-popup-request': 'Sign-in was cancelled. Please try again.'
+  };
+  toast(messages[error?.code] || 'Google sign-in failed. Please try again.');
 }
 
 // =============================================================================
@@ -727,9 +761,9 @@ function buildExpenseCat(cat) {
     const b = numv(d.expenses[cat.id][it.id].b) || '';
     return `<tr>
       <td><span class="item-label">${it.label}</span></td>
-      <td><input type="number" class="ni" data-t="exp" data-c="${cat.id}" data-i="${it.id}" data-f="b" value="${b}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
-      <td class="acc-ro" id="ea_${cat.id}_${it.id}">0.00</td>
-      <td class="vc" id="v_${cat.id}_${it.id}"></td>
+      <td data-label="Budgeted"><input type="number" class="ni" data-t="exp" data-c="${cat.id}" data-i="${it.id}" data-f="b" value="${b}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
+      <td data-label="Actual" class="acc-ro" id="ea_${cat.id}_${it.id}">0.00</td>
+      <td data-label="Variance" class="vc" id="v_${cat.id}_${it.id}"></td>
     </tr>`;
   }).join('');
 
@@ -768,8 +802,8 @@ function buildIncome() {
     const p = numv(d.income[it.id].p) || '';
     return `<tr>
       <td><span class="item-label">${it.label}</span></td>
-      <td><input type="number" class="ni" data-t="inc" data-i="${it.id}" data-f="p" value="${p}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
-      <td class="acc-ro" id="ia_${it.id}">0.00</td>
+      <td data-label="Projected"><input type="number" class="ni" data-t="inc" data-i="${it.id}" data-f="p" value="${p}" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></td>
+      <td data-label="Actual" class="acc-ro" id="ia_${it.id}">0.00</td>
     </tr>`;
   }).join('');
 
@@ -798,10 +832,10 @@ function buildSavings() {
     const g  = numv(sv.goal) || '';
     return `<tr>
       <td><span class="item-label">${it.label}</span></td>
-      <td><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="p"    value="${p}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
-      <td class="acc-ro" id="sa_${it.id}">0.00</td>
-      <td class="acc-ro" id="acc_${it.id}">0.00</td>
-      <td><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="goal" value="${g}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
+      <td data-label="Planned"><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="p" value="${p}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
+      <td data-label="Actual" class="acc-ro" id="sa_${it.id}">0.00</td>
+      <td data-label="Saved" class="acc-ro" id="acc_${it.id}">0.00</td>
+      <td data-label="Goal"><input type="number" class="ni ni-xs" data-t="sav" data-i="${it.id}" data-f="goal" value="${g}" placeholder="0" min="0" step="0.01" inputmode="decimal"></td>
     </tr>`;
   }).join('');
 
