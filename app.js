@@ -615,20 +615,9 @@ function initAuth() {
 
   const auth = firebase.auth();
 
-  // Complete redirect-based sign-in used by browsers that restrict popups.
-  auth.getRedirectResult().catch(e => {
-    console.error(e);
-    showAuthError(e);
-  });
-
   auth.onAuthStateChanged(user => {
     if (user) {
-      st.user = user;
-      showLoginScreen(false);
-      updateUserInfo(user);
-      document.getElementById('userInfo').style.display = 'flex';
-      document.getElementById('syncDot').classList.add('visible');
-      loadFromCloud();
+      completeSignIn(user);
     } else {
       st.user = null;
       st.data = {};
@@ -644,20 +633,12 @@ function initAuth() {
     provider.setCustomParameters({ prompt: 'select_account' });
     button.disabled = true;
     button.innerHTML = '<span class="auth-spinner" aria-hidden="true"></span>Opening Google…';
-    const ua = navigator.userAgent || '';
-    const useRedirect = /OPR\/|Opera|Opera Mini|FBAN|FBAV|Instagram/i.test(ua);
     try {
-      if (useRedirect) {
-        await auth.signInWithRedirect(provider);
-        return;
-      }
-      await auth.signInWithPopup(provider);
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      const result = await auth.signInWithPopup(provider);
+      if (result.user) completeSignIn(result.user);
     } catch (e) {
       console.error(e);
-      if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
-        await auth.signInWithRedirect(provider);
-        return;
-      }
       showAuthError(e);
       button.disabled = false;
       button.innerHTML = '<span class="google-g">G</span>Continue with Google';
@@ -698,10 +679,22 @@ function updateUserInfo(user) {
   setEl('headerGreeting', user.displayName?.split(' ')[0] || 'your money is ready');
 }
 
+function completeSignIn(user) {
+  const alreadyReady = st.user?.uid === user.uid &&
+    document.getElementById('loginScreen').style.display === 'none';
+  st.user = user;
+  showLoginScreen(false);
+  updateUserInfo(user);
+  document.getElementById('userInfo').style.display = 'flex';
+  document.getElementById('syncDot').classList.add('visible');
+  if (!alreadyReady) loadFromCloud();
+}
+
 function showAuthError(error) {
   const messages = {
     'auth/unauthorized-domain': 'This domain is not authorised for Google sign-in.',
-    'auth/network-request-failed': 'Network error. Check Opera ad-blocking or VPN, then try again.',
+    'auth/network-request-failed': 'Network error. Check your connection or browser privacy settings.',
+    'auth/popup-blocked': 'Please allow pop-ups for Budgetje, then try again.',
     'auth/popup-closed-by-user': 'Sign-in window was closed before completion.',
     'auth/cancelled-popup-request': 'Sign-in was cancelled. Please try again.'
   };
