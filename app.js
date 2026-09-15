@@ -613,7 +613,8 @@ function initAuth() {
 
   document.getElementById('localModeNote').style.display = 'grid';
 
-  const auth = firebase.auth();
+  // Modular auth (set by the ES-module script in index.html — same SDK as PayTrack)
+  const { auth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, getRedirectResult } = window._fbAuth;
 
   function handleSignedIn(user) {
     if (st.user) return;
@@ -625,17 +626,11 @@ function initAuth() {
     loadFromCloud();
   }
 
-  // Process result from signInWithRedirect (fires on every page load; no-op if no redirect pending)
-  auth.getRedirectResult()
-    .then(result => { /* onAuthStateChanged handles the user */ })
-    .catch(e => {
-      if (e.code && e.code !== 'auth/no-auth-event') {
-        toast('Sign-in failed — ' + (e.message || 'try again'));
-      }
-    });
+  // Process any pending redirect result
+  getRedirectResult(auth).catch(() => {});
 
-  // Sole source of truth for auth state — fires once on load (user or null) and again on change
-  auth.onAuthStateChanged(user => {
+  // Sole source of truth for auth state
+  onAuthStateChanged(auth, user => {
     if (user) {
       handleSignedIn(user);
     } else {
@@ -647,26 +642,30 @@ function initAuth() {
     }
   });
 
-  // Restore session when page returns from bfcache (browser back/forward button)
+  // Restore session when browser restores page from bfcache (back/forward button)
   window.addEventListener('pageshow', e => {
     if (e.persisted && auth.currentUser) handleSignedIn(auth.currentUser);
   });
 
-  // Use redirect (not popup) — avoids cross-origin postMessage blocking on GitHub Pages
+  // Popup with modular SDK — same as PayTrack (no cross-origin postMessage issues)
   document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
-    btn.querySelector('span') && (btn.querySelector('span').textContent = 'Redirecting…');
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithRedirect(provider).catch(e => {
-      btn.disabled = false;
-      toast('Sign-in failed — ' + (e.message || 'try again'));
-    });
+    signInWithPopup(auth, new GoogleAuthProvider())
+      .catch(e => {
+        btn.disabled = false;
+        const code = e.code || '';
+        if (code === 'auth/popup-blocked') {
+          toast('Popup blocked — allow popups for this site and try again');
+        } else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+          toast('Sign-in failed — ' + (e.message || 'try again'));
+        }
+      });
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
     if (!confirm('Sign out?')) return;
-    auth.signOut();
+    signOut(auth);
   });
 
   document.getElementById('btnLocalMode').addEventListener('click', e => {
