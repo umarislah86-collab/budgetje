@@ -617,7 +617,12 @@ function initAuth() {
 
   auth.onAuthStateChanged(user => {
     if (user) {
-      completeSignIn(user);
+      st.user = user;
+      showLoginScreen(false);
+      updateUserInfo(user);
+      document.getElementById('userInfo').style.display = 'flex';
+      document.getElementById('syncDot').classList.add('visible');
+      loadFromCloud();
     } else {
       st.user = null;
       st.data = {};
@@ -627,22 +632,12 @@ function initAuth() {
     }
   });
 
-  document.getElementById('btnGoogleSignIn').addEventListener('click', async () => {
-    const button = document.getElementById('btnGoogleSignIn');
+  document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    button.disabled = true;
-    button.innerHTML = '<span class="auth-spinner" aria-hidden="true"></span>Opening Google…';
-    try {
-      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-      const result = await auth.signInWithPopup(provider);
-      if (result.user) completeSignIn(result.user);
-    } catch (e) {
+    firebase.auth().signInWithPopup(provider).catch(e => {
       console.error(e);
-      showAuthError(e);
-      button.disabled = false;
-      button.innerHTML = '<span class="google-g">G</span>Continue with Google';
-    }
+      toast('Sign-in failed — try again');
+    });
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
@@ -677,28 +672,6 @@ function updateUserInfo(user) {
   setEl('profileEmail', user.email || 'Secure cloud account');
   setEl('profileAvatar', (user.displayName || user.email || 'B')[0].toUpperCase());
   setEl('headerGreeting', user.displayName?.split(' ')[0] || 'your money is ready');
-}
-
-function completeSignIn(user) {
-  const alreadyReady = st.user?.uid === user.uid &&
-    document.getElementById('loginScreen').style.display === 'none';
-  st.user = user;
-  showLoginScreen(false);
-  updateUserInfo(user);
-  document.getElementById('userInfo').style.display = 'flex';
-  document.getElementById('syncDot').classList.add('visible');
-  if (!alreadyReady) loadFromCloud();
-}
-
-function showAuthError(error) {
-  const messages = {
-    'auth/unauthorized-domain': 'This domain is not authorised for Google sign-in.',
-    'auth/network-request-failed': 'Network error. Check your connection or browser privacy settings.',
-    'auth/popup-blocked': 'Please allow pop-ups for Budgetje, then try again.',
-    'auth/popup-closed-by-user': 'Sign-in window was closed before completion.',
-    'auth/cancelled-popup-request': 'Sign-in was cancelled. Please try again.'
-  };
-  toast(messages[error?.code] || 'Google sign-in failed. Please try again.');
 }
 
 // =============================================================================
