@@ -615,14 +615,20 @@ function initAuth() {
 
   const auth = firebase.auth();
 
+  function handleSignedIn(user) {
+    if (st.user) return; // already handled
+    st.user = user;
+    showLoginScreen(false);
+    updateUserInfo(user);
+    document.getElementById('userInfo').style.display = 'flex';
+    document.getElementById('syncDot').classList.add('visible');
+    loadFromCloud();
+  }
+
+  // Handles persistent session (already logged in on page load)
   auth.onAuthStateChanged(user => {
     if (user) {
-      st.user = user;
-      showLoginScreen(false);
-      updateUserInfo(user);
-      document.getElementById('userInfo').style.display = 'flex';
-      document.getElementById('syncDot').classList.add('visible');
-      loadFromCloud();
+      handleSignedIn(user);
     } else {
       st.user = null;
       st.data = {};
@@ -636,11 +642,20 @@ function initAuth() {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
     const provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithPopup(provider).catch(e => {
-      console.error(e);
-      btn.disabled = false;
-      toast('Sign-in failed — ' + (e.message || 'try again'));
-    });
+    firebase.auth().signInWithPopup(provider)
+      .then(result => {
+        if (result.user) handleSignedIn(result.user);
+      })
+      .catch(e => {
+        btn.disabled = false;
+        console.error(e);
+        const code = e.code || '';
+        if (code === 'auth/popup-blocked') {
+          toast('Popup blocked — allow popups for this site and try again');
+        } else if (code !== 'auth/popup-closed-by-user') {
+          toast('Sign-in failed — ' + (e.message || 'try again'));
+        }
+      });
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
