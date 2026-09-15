@@ -611,7 +611,7 @@ function initAuth() {
     return;
   }
 
-  document.getElementById('localModeNote').style.display = 'block';
+  document.getElementById('localModeNote').style.display = 'grid';
 
   const auth = firebase.auth();
 
@@ -663,12 +663,15 @@ function showLoginScreen(show) {
 
 function updateUserInfo(user) {
   const avatar = document.getElementById('userAvatar');
-  if (!avatar) return;
-  if (user.photoURL) {
+  if (avatar && user.photoURL) {
     avatar.innerHTML = `<img src="${user.photoURL}" alt="">`;
-  } else {
+  } else if (avatar) {
     avatar.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
   }
+  setEl('profileName', user.displayName || 'Budgetje member');
+  setEl('profileEmail', user.email || 'Secure cloud account');
+  setEl('profileAvatar', (user.displayName || user.email || 'B')[0].toUpperCase());
+  setEl('headerGreeting', user.displayName?.split(' ')[0] || 'your money is ready');
 }
 
 // =============================================================================
@@ -888,7 +891,8 @@ function buildLogPage() {
   if (!list) return;
 
   if (txs.length === 0) {
-    list.innerHTML = '<div class="log-empty">No transactions this month.<br>Add one from the Home tab.</div>';
+    list.innerHTML = '<div class="log-empty"><strong>No transactions yet</strong><br>Start adding income and expenses to understand your month.</div>';
+    buildHomeRecent([]);
     return;
   }
 
@@ -918,6 +922,22 @@ function buildLogPage() {
       if (confirm('Delete this entry?')) deleteTransaction(btn.dataset.id);
     });
   });
+  buildHomeRecent(txs);
+}
+
+function buildHomeRecent(txs) {
+  const host = document.getElementById('homeRecent');
+  if (!host) return;
+  if (!txs.length) {
+    host.innerHTML = '<div class="log-empty">Nothing here yet.<br>Your newest transactions will appear here.</div>';
+    return;
+  }
+  host.innerHTML = txs.slice(0, 4).map(tx => {
+    const { icon, cat, item } = txLabel(tx);
+    const cls = tx.type === 'expense' ? 'log-exp' : 'log-inc';
+    const sign = tx.type === 'expense' ? '−' : '+';
+    return `<div class="log-item"><div class="log-icon">${icon}</div><div class="log-info"><div class="log-title">${tx.note || item}</div><div class="log-meta">${cat} · ${formatTxDate(tx.date)}</div></div><div class="log-amount ${cls}">${sign}RM&nbsp;${fmt(tx.amount)}</div></div>`;
+  }).join('');
 }
 
 function switchPage(name) {
@@ -929,8 +949,9 @@ function switchPage(name) {
   document.querySelector(`.bnav-tab[data-page="${name}"]`)?.classList.add('active');
 
   if (name === 'log') buildLogPage();
+  document.querySelectorAll('.budget-only').forEach(el => { el.style.display = name === 'budget' ? 'inline-flex' : 'none'; });
 
-  if (name === 'home' && st.charts) {
+  if (name === 'insights' && st.charts) {
     setTimeout(() => Object.values(st.charts).forEach(c => c?.update()), 50);
   }
 }
@@ -1045,6 +1066,19 @@ function submitEntry() {
   document.getElementById('entryAmount').focus();
 
   toast(`Added RM ${fmt(amount)} ✓`);
+  closeEntrySheet();
+}
+
+function openEntrySheet() {
+  const overlay = document.getElementById('entryOverlay');
+  overlay.style.display = 'grid';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('entryAmount').focus(), 40);
+}
+
+function closeEntrySheet() {
+  document.getElementById('entryOverlay').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 // =============================================================================
@@ -1126,14 +1160,20 @@ function updateDerived() {
   setEl('sum_na', fmt(s.na), s.na >= 0 ? 'var(--good)' : 'var(--bad)');
 
   // Stat tiles (Home page)
-  setEl('tile_ia', `RM ${fmt(s.ia)}`);
-  setEl('tile_ea', `RM ${fmt(s.ea)}`);
-  setEl('tile_sa', `RM ${fmt(s.sa)}`);
+  setEl('tile_ia', fmt(s.ia));
+  setEl('tile_ea', fmt(s.ea));
+  setEl('tile_sa', fmt(s.sa));
   const naEl = document.getElementById('tile_na');
   if (naEl) {
-    naEl.textContent = `RM ${fmt(s.na)}`;
-    naEl.style.color = s.na >= 0 ? 'var(--good)' : 'var(--bad)';
+    naEl.textContent = fmt(s.na);
+    naEl.style.color = s.na >= 0 ? 'inherit' : '#f2a18d';
   }
+  const used = s.ep > 0 ? Math.round((s.ea / s.ep) * 100) : 0;
+  setEl('homeBudgetTotal', `RM ${fmt(s.ep)}`);
+  setEl('homeBudgetUsed', `${used}%`);
+  const budgetBar = document.getElementById('homeBudgetBar');
+  if (budgetBar) budgetBar.style.width = `${Math.min(100, used)}%`;
+  setEl('homeBudgetMessage', s.ep > 0 ? (used > 100 ? 'Spending is above plan. Review the categories that need attention.' : `You have RM ${fmt(Math.max(0, s.ep - s.ea))} left in your expense plan.`) : 'Add a monthly budget to see your progress.');
 
   updateCharts();
   scheduleSave();
@@ -1386,6 +1426,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.bnav-tab').forEach(tab => {
     tab.addEventListener('click', () => switchPage(tab.dataset.page));
   });
+  document.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', e => {
+    e.preventDefault(); switchPage(el.dataset.go);
+  }));
+  document.querySelectorAll('.btn-add-trigger').forEach(btn => btn.addEventListener('click', openEntrySheet));
+  document.getElementById('btnCloseEntry').addEventListener('click', closeEntrySheet);
+  document.getElementById('entryOverlay').addEventListener('click', e => { if (e.target.id === 'entryOverlay') closeEntrySheet(); });
+  document.getElementById('profileTheme').addEventListener('click', () => document.getElementById('btnTheme').click());
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEntrySheet(); });
 
   // Init entry form
   initEntryForm();
