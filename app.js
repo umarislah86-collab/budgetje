@@ -616,7 +616,7 @@ function initAuth() {
   const auth = firebase.auth();
 
   function handleSignedIn(user) {
-    if (st.user) return; // already handled
+    if (st.user) return;
     st.user = user;
     showLoginScreen(false);
     updateUserInfo(user);
@@ -625,7 +625,16 @@ function initAuth() {
     loadFromCloud();
   }
 
-  // Handles persistent session (already logged in on page load)
+  // Process result from signInWithRedirect (fires on every page load; no-op if no redirect pending)
+  auth.getRedirectResult()
+    .then(result => { /* onAuthStateChanged handles the user */ })
+    .catch(e => {
+      if (e.code && e.code !== 'auth/no-auth-event') {
+        toast('Sign-in failed — ' + (e.message || 'try again'));
+      }
+    });
+
+  // Sole source of truth for auth state — fires once on load (user or null) and again on change
   auth.onAuthStateChanged(user => {
     if (user) {
       handleSignedIn(user);
@@ -638,29 +647,26 @@ function initAuth() {
     }
   });
 
+  // Restore session when page returns from bfcache (browser back/forward button)
+  window.addEventListener('pageshow', e => {
+    if (e.persisted && auth.currentUser) handleSignedIn(auth.currentUser);
+  });
+
+  // Use redirect (not popup) — avoids cross-origin postMessage blocking on GitHub Pages
   document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
+    btn.querySelector('span') && (btn.querySelector('span').textContent = 'Redirecting…');
     const provider = new firebase.auth.GoogleAuthProvider();
-    firebase.auth().signInWithPopup(provider)
-      .then(result => {
-        if (result.user) handleSignedIn(result.user);
-      })
-      .catch(e => {
-        btn.disabled = false;
-        console.error(e);
-        const code = e.code || '';
-        if (code === 'auth/popup-blocked') {
-          toast('Popup blocked — allow popups for this site and try again');
-        } else if (code !== 'auth/popup-closed-by-user') {
-          toast('Sign-in failed — ' + (e.message || 'try again'));
-        }
-      });
+    auth.signInWithRedirect(provider).catch(e => {
+      btn.disabled = false;
+      toast('Sign-in failed — ' + (e.message || 'try again'));
+    });
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
     if (!confirm('Sign out?')) return;
-    firebase.auth().signOut();
+    auth.signOut();
   });
 
   document.getElementById('btnLocalMode').addEventListener('click', e => {
