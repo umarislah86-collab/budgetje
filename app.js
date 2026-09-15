@@ -946,7 +946,10 @@ function switchPage(name) {
 
   const pageId = 'page' + name.charAt(0).toUpperCase() + name.slice(1);
   document.getElementById(pageId)?.classList.add('active');
-  document.querySelector(`.bnav-tab[data-page="${name}"]`)?.classList.add('active');
+  document.querySelectorAll(`.bnav-tab[data-page="${name}"]`).forEach(tab => tab.classList.add('active'));
+  if (name === 'insights') {
+    document.querySelector('.bottom-nav .bnav-tab[data-page="budget"]')?.classList.add('active');
+  }
 
   if (name === 'log') buildLogPage();
   document.querySelectorAll('.budget-only').forEach(el => { el.style.display = name === 'budget' ? 'inline-flex' : 'none'; });
@@ -1067,6 +1070,25 @@ function submitEntry() {
 
   toast(`Added RM ${fmt(amount)} ✓`);
   closeEntrySheet();
+}
+
+function initInsightsShortcuts() {
+  const makeButton = (description) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'insights-shortcut';
+    button.dataset.go = 'insights';
+    button.innerHTML = `<span><b>Insights</b><small>${description}</small></span><strong>View insights →</strong>`;
+    return button;
+  };
+  const hero = document.querySelector('#pageHome .hero-summary');
+  if (hero) hero.insertAdjacentElement('afterend', makeButton('Explore charts and spending patterns'));
+  const hint = document.querySelector('#pageBudget .budget-hint');
+  if (hint) {
+    const shortcut = makeButton('See how this month is tracking');
+    shortcut.classList.add('budget-insights');
+    hint.insertAdjacentElement('afterend', shortcut);
+  }
 }
 
 function openEntrySheet() {
@@ -1426,6 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.bnav-tab').forEach(tab => {
     tab.addEventListener('click', () => switchPage(tab.dataset.page));
   });
+  initInsightsShortcuts();
   document.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault(); switchPage(el.dataset.go);
   }));
