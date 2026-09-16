@@ -1,5 +1,5 @@
 import { auth, db, FIREBASE_ENABLED } from './firebase-config.js';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
 // =============================================================================
@@ -640,7 +640,10 @@ function initAuth() {
   document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
-    signInWithPopup(auth, new GoogleAuthProvider())
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => signInWithPopup(auth, provider))
       .catch(e => {
         btn.disabled = false;
         const code = e.code || '';
