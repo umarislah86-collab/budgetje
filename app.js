@@ -231,7 +231,8 @@ function computeActuals() {
 function calcAccumulated(itemId) {
   const ck = curKey();
   return Object.entries(st.data).reduce((total, [k, data]) => {
-    if (k >= ck) return total;
+    // Include the selected month; only future months are excluded.
+    if (k > ck) return total;
     return total + numv(data.savings?.[itemId]?.a);
   }, 0);
 }
