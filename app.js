@@ -622,16 +622,25 @@ function initAuth() {
   }
 
   // Auth state is the sole source of truth — same pattern as PayTrack
+  // Guard against transient null fires (Firebase can fire null briefly during token refresh)
+  let nullGuardTimer = null;
   onAuthStateChanged(auth, user => {
     console.log('[AUTH] onAuthStateChanged fired:', user ? user.email : 'null', 'at', Date.now(), new Error().stack.split('\n').slice(1,4).join(' | '));
     if (user) {
+      if (nullGuardTimer) { clearTimeout(nullGuardTimer); nullGuardTimer = null; }
       handleSignedIn(user);
     } else {
-      st.user = null;
-      st.data = {};
-      document.getElementById('userInfo').style.display = 'none';
-      document.getElementById('syncDot').classList.remove('visible');
-      showLoginScreen(true);
+      if (nullGuardTimer) return;
+      nullGuardTimer = setTimeout(() => {
+        nullGuardTimer = null;
+        if (auth.currentUser) return; // user came back — ignore the transient null
+        console.log('[AUTH] null confirmed — showing login screen');
+        st.user = null;
+        st.data = {};
+        document.getElementById('userInfo').style.display = 'none';
+        document.getElementById('syncDot').classList.remove('visible');
+        showLoginScreen(true);
+      }, 3000);
     }
   });
 
