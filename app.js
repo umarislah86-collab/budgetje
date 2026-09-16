@@ -549,7 +549,7 @@ async function loadFromCloud() {
     snap.forEach(d => { st.data[d.id] = d.data(); });
     setSyncDot('saved');
   } catch(e) {
-    console.error('Load error:', e);
+    console.error('[CLOUD] loadFromCloud error:', e.code, e.message, e);
     setSyncDot('error');
     loadLocal();
   }
@@ -623,7 +623,7 @@ function initAuth() {
 
   // Auth state is the sole source of truth — same pattern as PayTrack
   onAuthStateChanged(auth, user => {
-    console.log('[AUTH] onAuthStateChanged fired:', user ? user.email : 'null');
+    console.log('[AUTH] onAuthStateChanged fired:', user ? user.email : 'null', 'at', Date.now(), new Error().stack.split('\n').slice(1,4).join(' | '));
     if (user) {
       handleSignedIn(user);
     } else {
@@ -677,6 +677,7 @@ function initAuth() {
 }
 
 function showLoginScreen(show) {
+  console.log('[AUTH] showLoginScreen(' + show + ')', new Error().stack.split('\n')[2]);
   document.getElementById('loginScreen').style.display = show ? 'flex' : 'none';
 }
 
