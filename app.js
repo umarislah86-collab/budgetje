@@ -1,4 +1,4 @@
-import { auth, db, FIREBASE_ENABLED } from './firebase-config.js';
+import { auth, db, FIREBASE_ENABLED } from './firebase-config.js?v=7';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
