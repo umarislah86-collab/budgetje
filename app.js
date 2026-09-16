@@ -1,5 +1,5 @@
 import { auth, db, FIREBASE_ENABLED } from './firebase-config.js';
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, GoogleAuthProvider, signOut, setPersistence, browserLocalPersistence, getRedirectResult } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
 // =============================================================================
@@ -619,7 +619,7 @@ function initAuth() {
     loadFromCloud();
   }
 
-  // Auth state is the sole source of truth — mirrors PayTrack's approach exactly
+  // Auth state is the sole source of truth — same pattern as PayTrack
   onAuthStateChanged(auth, user => {
     if (user) {
       handleSignedIn(user);
@@ -632,13 +632,6 @@ function initAuth() {
     }
   });
 
-  // Handle redirect result (github.io uses redirect auth due to COOP)
-  getRedirectResult(auth)
-    .then(result => { if (result?.user) handleSignedIn(result.user); })
-    .catch(e => {
-      if (e.code && e.code !== 'auth/no-auth-event') toast('Sign-in failed — ' + e.code);
-    });
-
   // Restore session when browser restores page from bfcache (back/forward button)
   window.addEventListener('pageshow', e => {
     if (e.persisted && auth.currentUser) handleSignedIn(auth.currentUser);
@@ -648,26 +641,13 @@ function initAuth() {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-
-    // GitHub Pages forces Cross-Origin-Opener-Policy: same-origin which kills popup
-    // communication. Use full-page redirect there; keep popup everywhere else.
-    if (window.location.hostname.endsWith('.github.io')) {
-      signInWithRedirect(auth, provider).catch(e => {
-        btn.disabled = false;
-        toast('Sign-in failed — ' + (e.code || e.message || 'unknown error'));
-      });
-    } else {
-      setPersistence(auth, browserLocalPersistence)
-        .then(() => signInWithPopup(auth, provider))
-        .catch(e => {
-          btn.disabled = false;
-          const code = e.code || '';
-          if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-            toast('Sign-in failed — ' + (code || e.message || 'unknown error'));
-          }
-        });
-    }
+    signInWithPopup(auth, provider).catch(e => {
+      btn.disabled = false;
+      const code = e.code || '';
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        toast('Sign-in failed — ' + (code || e.message || 'unknown error'));
+      }
+    });
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
