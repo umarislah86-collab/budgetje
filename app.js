@@ -608,8 +608,10 @@ function initAuth() {
   document.getElementById('localModeNote').style.display = 'grid';
 
   // Modular auth (same SDK as PayTrack — imported at top of file)
+  console.log('[AUTH] initAuth: auth=', auth, 'currentUser=', auth?.currentUser);
 
   function handleSignedIn(user) {
+    console.log('[AUTH] handleSignedIn called, st.user=', st.user, 'new user=', user?.email);
     if (st.user) return;
     st.user = user;
     showLoginScreen(false);
@@ -621,6 +623,7 @@ function initAuth() {
 
   // Auth state is the sole source of truth — same pattern as PayTrack
   onAuthStateChanged(auth, user => {
+    console.log('[AUTH] onAuthStateChanged fired:', user ? user.email : 'null');
     if (user) {
       handleSignedIn(user);
     } else {
@@ -640,14 +643,20 @@ function initAuth() {
   document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
+    console.log('[AUTH] btnGoogleSignIn clicked, calling signInWithPopup');
     const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider).catch(e => {
-      btn.disabled = false;
-      const code = e.code || '';
-      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        toast('Sign-in failed — ' + (code || e.message || 'unknown error'));
-      }
-    });
+    signInWithPopup(auth, provider)
+      .then(result => {
+        console.log('[AUTH] signInWithPopup SUCCESS:', result.user.email);
+      })
+      .catch(e => {
+        btn.disabled = false;
+        console.error('[AUTH] signInWithPopup ERROR:', e.code, e.message, e);
+        const code = e.code || '';
+        if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+          toast('Sign-in failed — ' + (code || e.message || 'unknown error'));
+        }
+      });
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
