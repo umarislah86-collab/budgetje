@@ -1,3 +1,7 @@
+import { auth, db, FIREBASE_ENABLED } from './firebase-config.js';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, getRedirectResult } from 'firebase/auth';
+import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+
 // =============================================================================
 // SCHEMA
 // =============================================================================
@@ -526,10 +530,7 @@ async function saveToCloud() {
   if (!st.user) return;
   try {
     setSyncDot('saving');
-    const db = firebase.firestore();
-    await db.collection('users').doc(st.user.uid)
-            .collection('months').doc(curKey())
-            .set(curData());
+    await setDoc(doc(db, 'users', st.user.uid, 'months', curKey()), curData());
     setSyncDot('saved');
   } catch(e) {
     console.error('Save error:', e);
@@ -543,11 +544,9 @@ async function loadFromCloud() {
   if (!st.user) return;
   showLoading(true);
   try {
-    const db = firebase.firestore();
-    const snap = await db.collection('users').doc(st.user.uid)
-                         .collection('months').get();
+    const snap = await getDocs(collection(db, 'users', st.user.uid, 'months'));
     st.data = {};
-    snap.forEach(doc => { st.data[doc.id] = doc.data(); });
+    snap.forEach(d => { st.data[d.id] = d.data(); });
     setSyncDot('saved');
   } catch(e) {
     console.error('Load error:', e);
@@ -565,10 +564,7 @@ async function loadFromCloud() {
 async function saveMonthImmediate(k) {
   if (FIREBASE_ENABLED && st.user) {
     try {
-      await firebase.firestore()
-        .collection('users').doc(st.user.uid)
-        .collection('months').doc(k)
-        .set(st.data[k]);
+      await setDoc(doc(db, 'users', st.user.uid, 'months', k), st.data[k]);
     } catch(e) { saveLocal(); }
   } else {
     saveLocal();
@@ -578,9 +574,7 @@ async function saveMonthImmediate(k) {
 async function deleteMonthFromCloud(k) {
   if (!st.user) return;
   try {
-    const db = firebase.firestore();
-    await db.collection('users').doc(st.user.uid)
-            .collection('months').doc(k).delete();
+    await deleteDoc(doc(db, 'users', st.user.uid, 'months', k));
   } catch(e) { console.error('Delete error:', e); }
 }
 
@@ -613,8 +607,7 @@ function initAuth() {
 
   document.getElementById('localModeNote').style.display = 'grid';
 
-  // Modular auth (set by the ES-module script in index.html — same SDK as PayTrack)
-  const { auth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, getRedirectResult } = window._fbAuth;
+  // Modular auth (same SDK as PayTrack — imported at top of file)
 
   function handleSignedIn(user) {
     if (st.user) return;
