@@ -1,5 +1,5 @@
 import { auth, db, FIREBASE_ENABLED } from './firebase-config.js?v=7';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
 // =============================================================================
@@ -607,7 +607,6 @@ function initAuth() {
 
   document.getElementById('localModeNote').style.display = 'grid';
 
-  // Modular auth (same SDK as PayTrack — imported at top of file)
   console.log('[AUTH] initAuth: auth=', auth, 'currentUser=', auth?.currentUser);
 
   function handleSignedIn(user) {
@@ -621,11 +620,18 @@ function initAuth() {
     loadFromCloud();
   }
 
-  // Auth state is the sole source of truth — same pattern as PayTrack
-  // Guard against transient null fires (Firebase can fire null briefly during token refresh)
+  // Handle result from signInWithRedirect (fires once after returning from Google)
+  getRedirectResult(auth).then(result => {
+    if (result) console.log('[AUTH] getRedirectResult:', result.user.email);
+  }).catch(e => {
+    console.error('[AUTH] getRedirectResult error:', e.code, e.message);
+    if (e.code !== 'auth/popup-closed-by-user') toast('Sign-in failed — ' + (e.code || e.message));
+  });
+
+  // Auth state is the sole source of truth
   let nullGuardTimer = null;
   onAuthStateChanged(auth, user => {
-    console.log('[AUTH] onAuthStateChanged fired:', user ? user.email : 'null', 'at', Date.now(), new Error().stack.split('\n').slice(1,4).join(' | '));
+    console.log('[AUTH] onAuthStateChanged fired:', user ? user.email : 'null', 'at', Date.now());
     if (user) {
       if (nullGuardTimer) { clearTimeout(nullGuardTimer); nullGuardTimer = null; }
       handleSignedIn(user);
@@ -633,7 +639,7 @@ function initAuth() {
       if (nullGuardTimer) return;
       nullGuardTimer = setTimeout(() => {
         nullGuardTimer = null;
-        if (auth.currentUser) return; // user came back — ignore the transient null
+        if (auth.currentUser) return;
         console.log('[AUTH] null confirmed — showing login screen');
         st.user = null;
         st.data = {};
@@ -644,7 +650,6 @@ function initAuth() {
     }
   });
 
-  // Restore session when browser restores page from bfcache (back/forward button)
   window.addEventListener('pageshow', e => {
     if (e.persisted && auth.currentUser) handleSignedIn(auth.currentUser);
   });
@@ -652,20 +657,9 @@ function initAuth() {
   document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
-    console.log('[AUTH] btnGoogleSignIn clicked, calling signInWithPopup');
-    const provider = new GoogleAuthProvider();
-    signInWithPopup(auth, provider)
-      .then(result => {
-        console.log('[AUTH] signInWithPopup SUCCESS:', result.user.email);
-      })
-      .catch(e => {
-        btn.disabled = false;
-        console.error('[AUTH] signInWithPopup ERROR:', e.code, e.message, e);
-        const code = e.code || '';
-        if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-          toast('Sign-in failed — ' + (code || e.message || 'unknown error'));
-        }
-      });
+    btn.textContent = 'Redirecting…';
+    console.log('[AUTH] btnGoogleSignIn clicked, calling signInWithRedirect');
+    signInWithRedirect(auth, new GoogleAuthProvider());
   });
 
   document.getElementById('btnSignOut').addEventListener('click', () => {
@@ -687,7 +681,12 @@ function initAuth() {
 
 function showLoginScreen(show) {
   console.log('[AUTH] showLoginScreen(' + show + ')', new Error().stack.split('\n')[2]);
-  document.getElementById('loginScreen').style.display = show ? 'flex' : 'none';
+  const el = document.getElementById('loginScreen');
+  if (show) {
+    el.style.removeProperty('display'); // let CSS grid rule take over
+  } else {
+    el.style.setProperty('display', 'none', 'important'); // beats CSS display:grid!important
+  }
 }
 
 function updateUserInfo(user) {
