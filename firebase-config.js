@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+import { initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyCHujHMcJd9Uiw1CT9sEvdLBNGYUIkCtuQ",
@@ -14,9 +14,15 @@ const firebaseConfig = {
 export const FIREBASE_ENABLED = firebaseConfig.apiKey !== 'YOUR_API_KEY';
 
 const app = FIREBASE_ENABLED ? initializeApp(firebaseConfig) : null;
-export const auth = FIREBASE_ENABLED ? getAuth(app) : null;
-export const db   = FIREBASE_ENABLED ? getFirestore(app) : null;
 
-if (FIREBASE_ENABLED) {
-  enableMultiTabIndexedDbPersistence(db).catch(() => {});
-}
+// Explicit IndexedDB persistence for auth (same as default but no ambiguity)
+export const auth = FIREBASE_ENABLED
+  ? initializeAuth(app, { persistence: browserLocalPersistence })
+  : null;
+
+// v9+ Firestore persistence API (enableMultiTabIndexedDbPersistence was removed in v11)
+export const db = FIREBASE_ENABLED
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    })
+  : null;

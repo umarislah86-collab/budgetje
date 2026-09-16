@@ -1,5 +1,5 @@
 import { auth, db, FIREBASE_ENABLED } from './firebase-config.js';
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, GoogleAuthProvider, signOut, getRedirectResult } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
 // =============================================================================
@@ -619,16 +619,7 @@ function initAuth() {
     loadFromCloud();
   }
 
-  // Process any pending redirect result (handles fallback from redirect sign-in)
-  getRedirectResult(auth)
-    .then(result => { if (result?.user) handleSignedIn(result.user); })
-    .catch(e => {
-      if (e.code && e.code !== 'auth/no-auth-event') {
-        toast('Sign-in failed — ' + e.code);
-      }
-    });
-
-  // Sole source of truth for auth state
+  // Auth state is the sole source of truth — mirrors PayTrack's approach exactly
   onAuthStateChanged(auth, user => {
     if (user) {
       handleSignedIn(user);
@@ -646,21 +637,14 @@ function initAuth() {
     if (e.persisted && auth.currentUser) handleSignedIn(auth.currentUser);
   });
 
-  // Try popup first; if cross-origin blocks it, fall back to full-page redirect automatically
   document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
     const btn = document.getElementById('btnGoogleSignIn');
     btn.disabled = true;
     signInWithPopup(auth, new GoogleAuthProvider())
       .catch(e => {
+        btn.disabled = false;
         const code = e.code || '';
-        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/popup-blocked') {
-          // Cross-origin popup blocked — fall back to redirect auth automatically
-          signInWithRedirect(auth, new GoogleAuthProvider()).catch(e2 => {
-            btn.disabled = false;
-            toast('Sign-in failed — ' + (e2.code || e2.message));
-          });
-        } else {
-          btn.disabled = false;
+        if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
           toast('Sign-in failed — ' + (code || e.message || 'unknown error'));
         }
       });
